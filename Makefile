@@ -5,24 +5,44 @@ LD = aarch64-none-elf-ld
 ASFLAGS = -g
 CFLAGS = -c -nostdlib -nostartfiles -std=gnu99 -ffreestanding -g
 
-SRC_C := $(wildcard *.c)
-SRC_S := $(wildcard *.s)
-OBJ := $(SRC_C:.c=.o) $(SRC_S:.s=.o)
-LINKER_SCRIPT := link.ld
+# Source and build directories
+SRCDIR := src
+BUILDDIR := build
+
+# Find source files
+SRC_C := $(wildcard $(SRCDIR)/*.c)
+SRC_S := $(wildcard $(SRCDIR)/*.s)
+
+# Generate object file paths in build directory
+OBJ_C := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRC_C))
+OBJ_S := $(patsubst $(SRCDIR)/%.s,$(BUILDDIR)/%.o,$(SRC_S))
+OBJ := $(OBJ_C) $(OBJ_S)
+
+LINKER_SCRIPT := $(SRCDIR)/link.ld
 LDFLAGS = -T $(LINKER_SCRIPT)
 
-all: kernel
+# Default target
+all: $(BUILDDIR)/kernel.elf
 
-%.o: %.c
+# Create build directory if it doesn't exist
+$(BUILDDIR):
+	mkdir -p $(BUILDDIR)
+
+# Build C object files
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $< -o $@
 
-%.o: %.s
+# Build assembly object files
+$(BUILDDIR)/%.o: $(SRCDIR)/%.s | $(BUILDDIR)
 	$(AS) $(ASFLAGS) $< -o $@
 
-kernel: $(OBJ) $(LINKER_SCRIPT)
+# Link kernel
+$(BUILDDIR)/kernel.elf: $(OBJ) $(LINKER_SCRIPT)
 	$(LD) $(LDFLAGS) -o $@ $(OBJ)
 
+# Clean build artifacts
 clean:
-	rm -f *.o kernel
+	rm -rf $(BUILDDIR)
 
-.PHONY:
+# Phony targets
+.PHONY: all clean

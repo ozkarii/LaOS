@@ -1,2 +1,2 @@
-#!/bin/zsh
-qemu-system-aarch64 -machine raspi4b -nographic -kernel kernel -smp 4
+#!/bin/sh
+qemu-system-aarch64 -machine raspi4b -kernel build/kernel.elf -smp 4 $@

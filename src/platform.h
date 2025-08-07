@@ -1,0 +1,6 @@
+#ifndef PERIPHERALS_H
+#define PERIPHERALS_H
+
+#define PL011_BASE 0xfe201000
+
+#endif // PERIPHERALS_H

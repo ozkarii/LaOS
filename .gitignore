@@ -1,0 +1,4 @@
+toolchain/
+*.o
+*.elf
+*.a
