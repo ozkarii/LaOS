@@ -8,5 +8,7 @@ Using aarch64-none-elf toolchain
 **Solution:** Read mpidr_el1 and print hello world only when it is equal to zero.
 
 ## 3. Write a simple UART driver for later use
+- TODO: how to get chars
 
 ## 4. Decide what to do with multiple CPUs
+- For now, put them in _Infifnite_loop in start.s
