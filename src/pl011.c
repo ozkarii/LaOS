@@ -17,3 +17,8 @@ void pl011_putc(const char c) {
   while (pl011_busy()) {}
   pl011_write_reg32(UARTDR, c);
 }
+
+char pl011_getc(void) {
+  while (pl011_busy()) {}
+  return (char)(pl011_read_reg32(UARTDR) & 0xFF);
+}

@@ -13,5 +13,6 @@
 
 int pl011_busy(void);
 void pl011_putc(const char c);
+char pl011_getc(void);
 
 #endif // PL011_H
