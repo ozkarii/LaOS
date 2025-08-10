@@ -1,11 +1,11 @@
 # Toolchain path
-TOOLCHAIN_DIR := toolchain
+TOOLCHAIN_PATH := 
 
 # Tool paths - all tools are in the main bin directory
-AS = $(TOOLCHAIN_DIR)/bin/aarch64-none-elf-as
-CC = $(TOOLCHAIN_DIR)/bin/aarch64-none-elf-gcc
-LD = $(TOOLCHAIN_DIR)/bin/aarch64-none-elf-ld
-AR = $(TOOLCHAIN_DIR)/bin/aarch64-none-elf-ar
+AS = $(TOOLCHAIN_PATH)aarch64-none-elf-as
+CC = $(TOOLCHAIN_PATH)aarch64-none-elf-gcc
+LD = $(TOOLCHAIN_PATH)aarch64-none-elf-ld
+AR = $(TOOLCHAIN_PATH)aarch64-none-elf-ar
 
 # Source and build directories
 SRCDIR := src
