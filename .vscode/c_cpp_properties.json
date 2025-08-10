@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "Linux",
+            "name": "laudes-os",
             "includePath": [
                 "${workspaceFolder}/src/libc/include",
                 "${workspaceFolder}/**"
@@ -10,7 +10,13 @@
             "compilerPath": "toolchain/bin/aarch64-none-elf-gcc",
             "cStandard": "gnu99",
             "cppStandard": "gnu++17",
-            "intelliSenseMode": "linux-gcc-x64",
+            "intelliSenseMode": "gcc-arm64",
+            "compilerPathInCppPropertiesJson": "toolchain/bin/aarch64-none-elf-gcc",
+            "mergeConfigurations": false,
+            "recursiveIncludes": {},
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true
+            },
             "compilerArgs": [
                 "-nostdlib -ffreestanding"
             ]
