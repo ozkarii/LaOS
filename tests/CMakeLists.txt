@@ -33,6 +33,12 @@ add_executable(
   ../src/libc/strcmp.c
 )
 
+add_executable(
+  strlen_test
+  strlen_test.cc
+  ../src/libc/strlen.c
+)
+
 target_link_libraries(
   memcpy_test
   GTest::gtest_main
@@ -48,7 +54,13 @@ target_link_libraries(
   GTest::gtest_main
 )
 
+target_link_libraries(
+  strlen_test
+  GTest::gtest_main
+)
+
 include(GoogleTest)
 gtest_discover_tests(memcpy_test)
 gtest_discover_tests(snprintf_test)
 gtest_discover_tests(strcmp_test)
+gtest_discover_tests(strlen_test)
