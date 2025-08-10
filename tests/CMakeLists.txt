@@ -19,13 +19,18 @@ add_executable(
   memcpy_test
   memcpy_test.cc
   ../src/libc/memcpy.c
-  ../src/libc/snprintf.c
 )
 
 add_executable(
   snprintf_test
   snprintf_test.cc
   ../src/libc/snprintf.c
+)
+
+add_executable(
+  strcmp_test
+  strcmp_test.cc
+  ../src/libc/strcmp.c
 )
 
 target_link_libraries(
@@ -38,6 +43,12 @@ target_link_libraries(
   GTest::gtest_main
 )
 
+target_link_libraries(
+  strcmp_test
+  GTest::gtest_main
+)
+
 include(GoogleTest)
 gtest_discover_tests(memcpy_test)
 gtest_discover_tests(snprintf_test)
+gtest_discover_tests(strcmp_test)
