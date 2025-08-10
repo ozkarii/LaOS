@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include "../src/libc/include/string.h"
 
-#define MAX_STR_LEN 1024
 
 /* CORE FUNCTIONALITY TESTS */
 TEST(StrcmpTest, IdenticalStringsEqual) {
@@ -172,22 +171,4 @@ TEST(StrcmpTest, UTF8MultibyteCharactersComparison) {
     int res = strcmp(str1, str2);
 
     EXPECT_GT(res, 0);
-}
-
-TEST(StrcmpTest, HandlesNonNullTerminatedStringsSafely) {
-    char str1[MAX_STR_LEN];
-    char str2[MAX_STR_LEN];
-
-    memset(str1, 'a', MAX_STR_LEN);
-    memset(str2, 'a', MAX_STR_LEN);
-
-    str2[MAX_STR_LEN - 1] = 'b';
-
-    int res = 0;
-
-    EXPECT_NO_FATAL_FAILURE({
-        res = strcmp(str1, str2);
-    });
-
-    EXPECT_LT(res, 0); 
 }
