@@ -26,7 +26,7 @@ char* strcpy(char* dest, const char* src);
 
 
 /**
- * @brief Compares two null-terminated C strings lexicographically.
+ * @brief Compares two null-terminated C strings.
  * 
  * The comparison is performed character by character using unsigned char values.
  * It stops at the first differing character or the null terminator.
@@ -39,5 +39,15 @@ char* strcpy(char* dest, const char* src);
  *         - > 0 if str1 is greater than str2
  */
 int strcmp ( const char * str1, const char * str2 );
+
+/**
+ * @brief Calculates the length of a given string.
+ * 
+ * It doesn't count the null character '\0'.
+ * 
+ * @param str Pointer to the null-terminated string, whose lenght we need to find.
+ * @return The integral length of the string passed
+ */
+size_t strlen(const char * str);
 
 #endif // STRING_H
