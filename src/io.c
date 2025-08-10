@@ -1,5 +1,6 @@
+#include <stdarg.h>
+#include <stdarg.h>
 #include "pl011.h"
-#include "stdarg.h"
 #include "stdio.h"
 
 #define EOF (-1)

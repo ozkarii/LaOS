@@ -1,6 +1,6 @@
-#ifndef PERIPHERALS_H
-#define PERIPHERALS_H
+#ifndef PLATFORM_H
+#define PLATFORM_H
 
 #define PL011_BASE 0xfe201000
 
-#endif // PERIPHERALS_H
+#endif // PLATFORM_H

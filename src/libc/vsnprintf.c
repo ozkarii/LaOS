@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <stdarg.h>
+#include "include/stdio.h"
 
 static int int_to_str(int val, char* buf, int base) {
     if (val == 0) {
