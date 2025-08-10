@@ -2,3 +2,5 @@ toolchain/
 *.o
 *.elf
 *.a
+
+tests/build
