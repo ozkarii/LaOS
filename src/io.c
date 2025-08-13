@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include "pl011.h"
 #include "stdio.h"
+#include "io.h"
 
 #define EOF (-1)
 
