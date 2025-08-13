@@ -1,6 +1,9 @@
 #include "platform.h"
 #include "pl011.h"
 
+// Use just UART0 for now
+#define PL011_BASE UART0_BASE
+
 static inline void pl011_write_reg32(uint64_t offset, uint32_t val) {
   *(volatile uint32_t*)(PL011_BASE + offset) = val;
 }
