@@ -2,7 +2,7 @@
 _Reset:
     mrs x0, mpidr_el1
     and x0, x0, #0xFF
-    cbnz x0, _Infinite_loop
+    cbnz x0, _Sleep
 
     ldr x1, =bss_start
     ldr x2, =bss_end
@@ -23,6 +23,6 @@ _Set_sp:
     bl c_entry
     b .
 
-_Infinite_loop:
-    b _Infinite_loop
-
+_Sleep:
+    wfe
+    b _Sleep
