@@ -14,8 +14,8 @@ LIBC_SRCDIR := src/libc
 LIBC_INCLUDEDIR := src/libc/include
 LIBC_BUILDDIR := $(BUILDDIR)/libc
 
-ASFLAGS = -g
-CFLAGS = -c -nostartfiles -std=gnu99 -ffreestanding -g -nostdlib -I$(LIBC_INCLUDEDIR) -Wall -Wextra
+ASFLAGS = -g -march=armv8-a
+CFLAGS = -c -nostartfiles -std=gnu99 -ffreestanding -g -nostdlib -I$(LIBC_INCLUDEDIR) -Wall -Wextra -march=armv8-a
 
 # Find source files
 SRC_C := $(wildcard $(SRCDIR)/*.c)
