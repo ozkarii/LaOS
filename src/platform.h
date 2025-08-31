@@ -15,11 +15,13 @@
 
 #endif // LOW_PERIPHERAL_MODE
 
-#define UART0_RX_IRQ      (16 + 0x79)
-#define SYS_TIMER_C0_IRQ  (96)
-#define SYS_TIMER_C1_IRQ  (97)
-#define SYS_TIMER_C2_IRQ  (98)
-#define SYS_TIMER_C3_IRQ  (99)
+#define VC_IRQ_BASE 96 
+
+#define UART_IRQ          (VC_IRQ_BASE + 57)
+#define SYS_TIMER_C0_IRQ  (VC_IRQ_BASE)
+#define SYS_TIMER_C1_IRQ  (VC_IRQ_BASE + 1)
+#define SYS_TIMER_C2_IRQ  (VC_IRQ_BASE + 2)
+#define SYS_TIMER_C3_IRQ  (VC_IRQ_BASE + 3)
 
 
 #endif // PLATFORM_H

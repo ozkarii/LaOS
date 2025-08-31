@@ -2,8 +2,19 @@ ENTRY(_Reset)
 SECTIONS
 {
 	. = 0x40000000;
+	
+	/* Vector table section - must be aligned to 2KB */
+	.vectors . : ALIGN(0x800) { 
+		*(.vectors)
+		. = ALIGN(0x800);
+	}
+	
 	.startup . : { *start.o(.text) }
 	.text : { *(.text) }
+	
+	/* Read-only data */
+	.rodata : { *(.rodata*) }
+	
 	.data : { *(.data) }
 	.bss : 
 	{
