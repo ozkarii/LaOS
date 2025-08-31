@@ -1,6 +1,10 @@
 toolchain/
+.vscode/
 *.o
 *.elf
 *.a
 
 tests/build
+
+qemu/
+qemu-install/
