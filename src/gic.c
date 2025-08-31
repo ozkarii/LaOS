@@ -51,13 +51,22 @@ static uint8_t gicd_get_num_priorities(void) {
   return result;
 }
 
-int gicd_enable_and_activate_irq(uint32_t irq) {
+int gicd_enable_irq(uint32_t irq) {
   if (irq >= gicd_get_num_irqs()) {
     return -1; // Invalid IRQ number
   }
   uint32_t reg_offset = (irq / 32) * 4;
   uint64_t bit = 1u << (irq % 32);
   gicd_write_reg32(D_ISENABLER + reg_offset, bit);
+  return 0; // Success
+}
+
+int gicd_activate_irq(uint32_t irq) {
+    if (irq >= gicd_get_num_irqs()) {
+    return -1; // Invalid IRQ number
+  }
+  uint32_t reg_offset = (irq / 32) * 4;
+  uint64_t bit = 1u << (irq % 32);
   gicd_write_reg32(D_ISACTIVER + reg_offset, bit);
   return 0; // Success
 }
@@ -74,7 +83,7 @@ int gicd_set_irq_priority(uint32_t irq, uint8_t priority) {
 }
 
 int gicd_set_irq_cpu(uint32_t irq, uint32_t cpu) {
-  if (irq >= gicd_get_num_irqs() || cpu > 7) {
+  if (irq >= gicd_get_num_irqs() || cpu > 7 || irq < SPI_START) {
     return -1; // Invalid IRQ number
   }
   uint32_t reg_offset = (irq / 4) * 4;
@@ -96,13 +105,13 @@ void gic_print_info(log_func_t log) {
   log("ARM Generic Interrupt Controller (GIC)\r\n");
   log("  Version: v%u\r\n", GIC_VERSION);
   log("  Model: %s\r\n", GIC_MODEL);
-  log("GIC Distributor Info\r\n");
+  log("GIC Distributor at 0x%x:\r\n", GICD_BASE);
   log("  Number of IRQs: %lu\r\n", gicd_get_num_irqs());
   log("  Security Extension: %s\r\n", gicd_has_security_extn() ? "Yes" : "No");
   log("  Number of Priorities: %u\r\n", gicd_get_num_priorities());
   log("  Distributor Enabled: %s\r\n",
      (gicd_read_reg32(D_CTLR) & (D_CTLR_ENABLE_GRP0 | D_CTLR_ENABLE_GRP1)) ? "Yes" : "No");
-  log("GIC CPU Interface Info\r\n");
+  log("GIC CPU Interface at 0x%x:\r\n", GICC_BASE);
   log("  CPU Interface Enabled: %s\r\n",
      (gicc_read_reg32(C_CTLR) & (C_CTLR_ENABLE_GRP0 | C_CTLR_ENABLE_GRP1)) ? "Yes" : "No");
 }
@@ -115,3 +124,14 @@ void gicc_disable(void) {
   gicc_write_reg32(C_CTLR, gicc_read_reg32(C_CTLR) & ~(C_CTLR_ENABLE_GRP0 | C_CTLR_ENABLE_GRP0));
 }
 
+void gicc_set_priority_mask(uint8_t value) {
+  gicc_write_reg32(C_PMR, value);
+}
+
+uint32_t gicc_get_intid_and_ack(void) {
+  return gicc_read_reg32(C_IAR);
+}
+
+void gicc_end_irq(uint32_t intid) {
+  gicc_write_reg32(C_EOIR, intid);
+}

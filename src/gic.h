@@ -27,19 +27,36 @@
 #define C_CTLR_ENABLE_GRP0  1u
 #define C_CTLR_ENABLE_GRP1  (1u << 1)
 
-typedef int (*log_func_t)(const char *format, ...);
+#define C_PMR 0x04
+
+#define C_IAR 0x0C
+
+#define C_EOIR 0x10
+
+#define SGI_START  0u
+#define PPI_START  16u
+#define SPI_START  32u
+
+typedef void (*log_func_t)(const char *format, ...);
 
 void gicd_enable(void);
 void gicd_disable(void);
 
-int gicd_enable_and_activate_irq(uint32_t irq);
+int gicd_enable_irq(uint32_t irq);
+int gicd_activate_irq(uint32_t irq);
 int gicd_set_irq_priority(uint32_t irq, uint8_t priority);
+
+// Currently one cpu at a time
 int gicd_set_irq_cpu(uint32_t irq, uint32_t cpu);
 int gicd_is_irq_pending(uint32_t irq);
 
 void gicc_enable(void);
 void gicc_disable(void);
+void gicc_set_priority_mask(uint8_t mask);
+uint32_t gicc_get_intid_and_ack(void);
+void gicc_end_irq(uint32_t intid);
 
 void gic_print_info(log_func_t log);
+
 
 #endif // GIC_H
