@@ -1,9 +1,29 @@
 #include "string.h"
 #include "console.h"
 #include "io.h"
+#include "armv8-a.h"
+#include "gic.h"
+#include "pl011.h"
 
 #define WELCOME "Welcome to Laudes OS"
 #define GNOME_BACKSPACE 0x7f
+
+void startup_logs() {
+  k_printf("Using CPU%u\r\n", GET_MPIDR() & 0xFF);
+  k_printf("CurrentEL: EL%u\r\n", GET_CURRENT_EL() >> 2u);
+  k_printf("VBAR_EL3: 0x%lx\r\n", GET_VBAR_EL3());
+  uint32_t spsel = GET_SPSEL();
+  k_printf("SPSel: %d (%s)\n", spsel & 1, (spsel & 1) ? "SP_ELx" : "SP_EL0");
+  k_printf("Timer Frequency: %u MHz\r\n", GET_TIMER_FREQ() / 1000000);
+  gic_print_info(k_printf);
+  pl011_print_info(k_printf);
+}
+
+static void exec_command(const char* command) {
+  if (!strcmp(command, "info uart")) {
+    pl011_print_info(k_printf);
+  }
+}
 
 // Escape sequence handler, can modify line ptr position when arrow keys pressed
 static void escape_handler(const char* line, char** line_ptr) {
@@ -37,7 +57,6 @@ static void escape_handler(const char* line, char** line_ptr) {
 }
 
 void console_loop(const char* prompt) {
-
   k_printf("%s\r\n", WELCOME);
   char line[LINE_MAX];
   
@@ -52,8 +71,10 @@ void console_loop(const char* prompt) {
     while (1) {
       char tmp = k_getchar();
 
-      // Break if enter
+      // Execute current line and break if enter
       if (tmp == '\r') {
+        k_puts("\r\n");
+        exec_command(line);
         break;
       }
 
@@ -82,7 +103,7 @@ void console_loop(const char* prompt) {
 
       // If last char in line, break
       if (line_ptr == &line[LINE_MAX - 1]) {
-        k_printf("\r\nLine reached max length (%d), try again", LINE_MAX);
+        k_printf("\r\nLine reached max length (%d), try again\r\n", LINE_MAX);
         break;
       }
       else {
@@ -94,8 +115,6 @@ void console_loop(const char* prompt) {
       *line_ptr = '\0';
 
     }
-
-    k_puts("\r\n");
   }
 
 }
