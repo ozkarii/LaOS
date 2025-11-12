@@ -7,9 +7,11 @@
 #include "io.h"
 #include "pl011.h"
 #include "platform.h"
+#include "armv8-a.h"
 
 void sync_exception_handler(void) {
     k_puts("sync_exception_handler\r\n");
+    cpu_dump_registers(k_printf);
     while(1);
 }
 
@@ -27,5 +29,6 @@ void fiq_exception_handler(void) {
 
 void serror_exception_handler(void) {
     k_puts("serror_exception_handler\r\n");
+    cpu_dump_registers(k_printf);
     while(1);
 }
