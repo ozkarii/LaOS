@@ -23,14 +23,13 @@ SECTIONS
 		bss_end = .;
 	}
     
-	/* Heap section */
+    /* EL3 Stack */
     . = ALIGN(16);
-    heap_start = .;
-    . = . + 0x4000000;  /* 64MB heap */
-    heap_end = .;
+    . = . + 0x8000;    /* 32KB stack for EL3 */
+    stack_top_el3 = .;
     
-    /* Stack section */
+    /* EL1 Stack */
     . = ALIGN(16);
-    . = . + 0x10000;   /* 64KB stack */
-    stack_top = .;
+    . = . + 0x8000;    /* 32KB stack for EL1 */
+    stack_top_el1 = .;
 }

@@ -23,7 +23,6 @@ _Reset:
     cmp x1, x2
     beq _Set_sp
 
-    mov x3, #0  // offset
 _Zero_bss_loop:
     strb wzr, [x1], #1    // Store zero and post-increment x1
     cmp x1, x2            // Compare current address with bss_end
@@ -31,9 +30,10 @@ _Zero_bss_loop:
 
 
 _Set_sp:
-    ldr x30, =stack_top  // setup stack
-    mov sp, x30
-    
+    // Set EL3 stack
+    ldr x0, =stack_top_el3
+    mov sp, x0
+
     bl c_entry
     b .
 
