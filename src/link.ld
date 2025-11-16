@@ -22,14 +22,16 @@ SECTIONS
 		*(.bss COMMON)
 		bss_end = .;
 	}
-    
-    /* EL3 Stack */
+
+	. = ALIGN(16);
+	.stack_bottom = .;
+    . = . + 0x10000;  /* 4*16KB of stack for each CPU in EL3*/
     . = ALIGN(16);
-    . = . + 0x8000;    /* 32KB stack for EL3 */
-    stack_top_el3 = .;
-    
-    /* EL1 Stack */
-    . = ALIGN(16);
-    . = . + 0x8000;    /* 32KB stack for EL1 */
-    stack_top_el1 = .;
+    stack_top = .;
+
+	. = ALIGN(16);
+	.stack_bottom_el1 = .;
+	. = . + 0x8000;   /* 32KB stack for EL1 CPU0 */
+	. = ALIGN(16);
+	stack_top_el1 = .;
 }

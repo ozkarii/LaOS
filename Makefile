@@ -1,7 +1,6 @@
 # Toolchain path
 TOOLCHAIN_PATH := 
 
-# Tool paths - all tools are in the main bin directory
 AS = $(TOOLCHAIN_PATH)aarch64-none-elf-as
 CC = $(TOOLCHAIN_PATH)aarch64-none-elf-gcc
 LD = $(TOOLCHAIN_PATH)aarch64-none-elf-ld
@@ -15,7 +14,7 @@ LIBC_INCLUDEDIR := src/libc/include
 LIBC_BUILDDIR := $(BUILDDIR)/libc
 
 ASFLAGS = -g -march=armv8-a
-CFLAGS = -c -nostartfiles -std=gnu99 -ffreestanding -g -nostdlib -I$(LIBC_INCLUDEDIR) -Wall -Wextra -march=armv8-a
+CFLAGS = -c -nostartfiles -std=gnu99 -ffreestanding -g -nostdlib -I$(LIBC_INCLUDEDIR) -Wall -Wextra -march=armv8-a -mgeneral-regs-only
 
 # Find source files
 SRC_C := $(wildcard $(SRCDIR)/*.c)
