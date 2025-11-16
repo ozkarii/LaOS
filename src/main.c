@@ -28,7 +28,7 @@ int c_entry() {
 
   ENABLE_ALL_INTERRUPTS();
 
-  // startup_logs();
+  startup_logs();
 
   console_loop("#");
   

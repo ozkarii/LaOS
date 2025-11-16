@@ -6,15 +6,17 @@
 #include "pl011.h"
 
 #define WELCOME "Welcome to Laudes OS"
+#define LINE_MAX 256
+
 #define GNOME_BACKSPACE 0x7f
+#define KEY_UP 0x41
+#define KEY_DOWN 0x42
+#define KEY_RIGHT 0x43
+#define KEY_LEFT 0x44
 
 void startup_logs() {
   k_printf("Using CPU%u\r\n", GET_MPIDR() & 0xFF);
   k_printf("CurrentEL: EL%u\r\n", GET_CURRENT_EL() >> 2u);
-  k_printf("VBAR_EL3: 0x%lx\r\n", GET_VBAR_EL3());
-  uint32_t spsel = GET_SPSEL();
-  k_printf("SPSel: %d (%s)\n", spsel & 1, (spsel & 1) ? "SP_ELx" : "SP_EL0");
-  k_printf("Timer Frequency: %u MHz\r\n", GET_TIMER_FREQ() / 1000000);
   gic_print_info(k_printf);
   pl011_print_info(k_printf);
 }
@@ -29,22 +31,19 @@ static void exec_command(const char* command) {
 static void escape_handler(const char* line, char** line_ptr) {
   char first = k_getchar();
   if (first == '[') {
-    /*     41
-     * 44  42  43
-     */
     char second = k_getchar();
     switch (second) {
-    case 0x41:
+    case KEY_UP:
       break;
-    case 0x42:
+    case KEY_DOWN:
       break;
-    case 0x43:
+    case KEY_RIGHT:
       k_putchar('\e');
       k_putchar(first);
       k_putchar(second);
       *line_ptr -= 1;
       break;
-    case 0x44:
+    case KEY_LEFT:
       if (*line_ptr != line) {
         k_putchar('\e');
         k_putchar(first);
@@ -54,6 +53,10 @@ static void escape_handler(const char* line, char** line_ptr) {
       break;
     }
   }
+}
+
+static inline bool is_backspace(char c) {
+  return (c == '\b' || c == GNOME_BACKSPACE);
 }
 
 void console_loop(const char* prompt) {
@@ -85,7 +88,7 @@ void console_loop(const char* prompt) {
       }
 
       // Handle backspace
-      if (tmp == GNOME_BACKSPACE || tmp == '\b') {
+      if (is_backspace(tmp)) {
         // Do nothing if at the start of the line
         if (line_ptr > line) {
           // Move cursor back, overwrite with space, move back again
