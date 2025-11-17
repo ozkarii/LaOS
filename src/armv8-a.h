@@ -85,6 +85,12 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 #define DISABLE_PHYS_TIMER() \
     asm volatile ("msr cntp_ctl_el0, %0" : : "r"(0))
 
+#define GET_PHYS_TIMER_VALUE() ({ \
+    uint64_t val; \
+    asm volatile ("mrs %0, cntp_tval_el0" : "=r"(val)); \
+    val; \
+})
+
 /* INTERRUPTS */
 
 #define EL1_PHY_TIM_IRQ 30u

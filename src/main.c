@@ -7,20 +7,32 @@
 #include "stdio.h"
 #include "string.h"
 
+
 #include "io.h"
 #include "console.h"
 #include "gic.h"
 #include "armv8-a.h"
 #include "platform.h"
 #include "pl011.h"
+#include "sched.h"
+
+void console_loop_task(void) {
+  console_loop("#");
+}
 
 int c_entry() {
   pl011_enable();
   pl011_set_rx_irq(true);
 
   gicd_enable_irq(UART_IRQ);
-  gicd_set_irq_priority(UART_IRQ, 0);
+  gicd_enable_irq(EL1_PHY_TIM_IRQ);
+
+  gicd_set_irq_priority(UART_IRQ, 1);
+  gicd_set_irq_priority(EL1_PHY_TIM_IRQ, 0);
+
   gicd_set_irq_cpu(UART_IRQ, 0);
+  gicd_set_irq_cpu(EL1_PHY_TIM_IRQ, 0);
+
   gicc_set_priority_mask(0xFF);
   
   gicd_enable();
@@ -30,15 +42,9 @@ int c_entry() {
 
   startup_logs();
 
-  ENABLE_PHYS_TIMER();
-  
-  k_printf("Waiting for timer IRQ\n");
+  sched_init(1000000);
+  sched_create_task(console_loop_task);
+  sched_start();
 
-  SET_PHYS_TIMER_VALUE(1000);
-
-  while (1) {}
-
-  console_loop("#");
-  
   return 0;
 } 

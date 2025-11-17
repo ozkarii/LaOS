@@ -8,6 +8,7 @@
 #include "pl011.h"
 #include "platform.h"
 #include "armv8-a.h"
+#include "sched.h"
 
 void sync_exception_handler(void) {
     k_puts("sync_exception_handler\r\n");
@@ -24,6 +25,7 @@ void irq_exception_handler(void) {
         break;
     case EL1_PHY_TIM_IRQ:
         k_printf("Got EL1 PHY TIM IRQ\n");
+        sched_timer_irq_handler();
         break;
     default:
         k_printf("Got unknown IRQ with ID %x\n", intid);
