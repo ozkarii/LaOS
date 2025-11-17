@@ -1,1 +1,8 @@
-gdb --ex "set arch aarch64" --ex "file build/kernel.elf" --ex "b c_entry" --ex "target remote :1234"
+GDB="gdb"
+
+if command -v gdb-multiarch > /dev/null 2>&1
+then
+	GDB="gdb-multiarch"
+fi
+
+$GDB --ex "set arch aarch64" --ex "symbol build/kernel.elf" --ex "target remote localhost:1234"
