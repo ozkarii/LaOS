@@ -30,6 +30,14 @@ int c_entry() {
 
   startup_logs();
 
+  ENABLE_PHYS_TIMER();
+  
+  k_printf("Waiting for timer IRQ\n");
+
+  SET_PHYS_TIMER_VALUE(1000);
+
+  while (1) {}
+
   console_loop("#");
   
   return 0;

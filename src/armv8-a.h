@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-#define EL1_PHY_TIM_IRQ 30u
 
 /* REGISTER GETTER GENERATORS */
 
@@ -76,20 +75,19 @@ MAKE_MOV_GETTER_64(GET_X7, x7)
 
 MAKE_MRS_GETTER_32(GET_TIMER_FREQ, cntfrq_el0)
 MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
-MAKE_MRS_GETTER_32(GET_SECURE_TIMER_VALUE, cntps_tval_el1)
-MAKE_MRS_GETTER_32(GET_SECURE_TIMER_STATUS, cntps_ctl_el1)
 
-#define SET_SECURE_TIMER_VALUE(tval) \
-    asm volatile ("msr cntps_tval_el1, %0" : : "r"(tval))
+#define SET_PHYS_TIMER_VALUE(tval) \
+    asm volatile ("msr cntp_tval_el0, %0" : : "r"(tval))
 
-#define ENABLE_SECURE_TIMER() \
-    asm volatile ("msr cntps_ctl_el1, %0" : : "r"(1))
+#define ENABLE_PHYS_TIMER() \
+    asm volatile ("msr cntp_ctl_el0, %0" : : "r"(1))
 
-#define DISABLE_SECURE_TIMER() \
-    asm volatile ("msr cntps_ctl_el1, %0" : : "r"(0))
-
+#define DISABLE_PHYS_TIMER() \
+    asm volatile ("msr cntp_ctl_el0, %0" : : "r"(0))
 
 /* INTERRUPTS */
+
+#define EL1_PHY_TIM_IRQ 30u
 
 #define ENABLE_IRQ() \
     asm volatile ("msr daifclr, #2" ::: "memory")
