@@ -22,15 +22,15 @@ void console_loop_task(void) {
 
 void hello_laudes_task(void) {
   while (1) {
-    k_printf("Hello, Laudes OS!\r\n");
-    for (volatile int i = 0; i < 200000000; i++);
+    k_printf("lau timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
+    for (volatile int i = 0; i < 80000000; i++);
   }
 }
 
 void hello_world_task(void) {
   while (1) {
-    k_printf("Hello, World!\r\n");
-    for (volatile int i = 0; i < 200000000; i++);
+    k_printf("world timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
+    for (volatile int i = 0; i < 80000000; i++);
   }
 }
 

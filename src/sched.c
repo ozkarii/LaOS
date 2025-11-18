@@ -1,7 +1,7 @@
 #include "string.h"
 #include "armv8-a.h"
 #include "sched.h"
-
+#include "io.h"
 
 #define MAX_TASKS 16
 #define TASK_STACK_SIZE 0x4000  // 16 KB
@@ -31,12 +31,13 @@
       : "memory" \
     ); \
     __asm__ __volatile__ ( \
-      "mov %0, sp\n" \
-      : "=r" (task_ctx.sp) \
+      "mov x0, sp\n" \
     ); \
     __asm__ __volatile__ ( \
-      "adr %0, .\n" \
-      : "=r" (task_ctx.pc) \
+      "str x0, [%0]\n" \
+      : \
+      : "r" (task_ctx.sp) \
+      : "memory" \
     ); \
   } while (0)
 
@@ -147,7 +148,6 @@ static int64_t determine_next_task(void) {
 }
 
 static void switch_context(uint32_t new_task_idx) {
-  SAVE_CONTEXT(sched_ctx.task_list[sched_ctx.current_task].ctx);
   sched_ctx.task_list[new_task_idx].state = TASK_STATE_RUNNING;
   start_timer();
   RESTORE_CONTEXT(sched_ctx.task_list[new_task_idx].ctx);
@@ -171,11 +171,14 @@ int sched_start(void) {
 
 void sched_timer_irq_handler(void) {
   stop_timer();
+  SAVE_CONTEXT(sched_ctx.task_list[sched_ctx.current_task].ctx);
+
   if (sched_ctx.task_list[sched_ctx.current_task].state == TASK_STATE_RUNNING) {
     sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_READY;
   }
 
   int64_t next_task_idx = determine_next_task();
+  k_printf("%ld\n", next_task_idx);
   if (next_task_idx < 0) {
     start_timer();
     sched_idle();
