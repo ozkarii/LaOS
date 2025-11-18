@@ -25,7 +25,7 @@ SECTIONS
 
 	. = ALIGN(16);
 	.stack_bottom = .;
-    . = . + 0x10000;  /* 4*16KB of stack for each CPU in EL3*/
+    . = . + 0x10000;  /* 16KB of stack for each of the CPUs in EL3*/
     . = ALIGN(16);
     stack_top = .;
 

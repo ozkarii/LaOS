@@ -24,7 +24,7 @@ void irq_exception_handler(void) {
         pl011_getc();
         break;
     case EL1_PHY_TIM_IRQ:
-        k_printf("Got EL1 PHY TIM IRQ\n");
+        // k_printf("Got EL1 PHY TIM IRQ\n");
         sched_timer_irq_handler();
         break;
     default:

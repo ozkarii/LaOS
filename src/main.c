@@ -20,6 +20,20 @@ void console_loop_task(void) {
   console_loop("#");
 }
 
+void hello_laudes_task(void) {
+  while (1) {
+    k_printf("Hello, Laudes OS!\r\n");
+    for (volatile int i = 0; i < 200000000; i++);
+  }
+}
+
+void hello_world_task(void) {
+  while (1) {
+    k_printf("Hello, World!\r\n");
+    for (volatile int i = 0; i < 200000000; i++);
+  }
+}
+
 int c_entry() {
   pl011_enable();
   pl011_set_rx_irq(true);
@@ -43,7 +57,8 @@ int c_entry() {
   startup_logs();
 
   sched_init(1000000);
-  sched_create_task(console_loop_task);
+  sched_create_task(hello_laudes_task);
+  sched_create_task(hello_world_task);
   sched_start();
 
   return 0;

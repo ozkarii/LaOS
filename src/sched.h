@@ -5,8 +5,8 @@
 #include <stdbool.h>
 
 
-bool sched_init(uint64_t time_slice_us);
-bool sched_start(void);
+void sched_init(uint64_t time_slice_us);
+int sched_start(void);
 bool sched_create_task(void (*task_func)(void));
 void sched_timer_irq_handler(void);
 
