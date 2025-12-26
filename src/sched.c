@@ -9,6 +9,14 @@
 
 #define SAVE_CONTEXT(task_ctx) \
   do { \
+      __asm__ __volatile__ ( \
+        "mov x0, sp\n" \
+        "add x0, x0, #128\n" \
+        "str x0, [%0]\n" \
+        : \
+        : "r" (&task_ctx.sp) \
+        : "x0", "memory" \
+      ); \
     __asm__ __volatile__ ( \
       "stp x0, x1, [%0, #16 * 0]\n" \
       "stp x2, x3, [%0, #16 * 1]\n" \
@@ -31,22 +39,11 @@
       : "memory" \
     ); \
     __asm__ __volatile__ ( \
-      "mov x0, sp\n" \
-    ); \
-    __asm__ __volatile__ ( \
+      "mrs x0, elr_el1\n" \
       "str x0, [%0]\n" \
       : \
-      : "r" (task_ctx.sp) \
-      : "memory" \
-    ); \
-  } while (0)
-
-#define JUMP_TO_ADDR(addr) \
-  do { \
-    __asm__ __volatile__ ( \
-      "br %0\n" \
-      : \
-      : "r" (addr) \
+      : "r" (&task_ctx.pc) \
+      : "x0", "memory" \
     ); \
   } while (0)
 
@@ -77,6 +74,34 @@
     __builtin_unreachable(); \
   } while (0)
 
+#define RESTORE_CONTEXT_FROM_IRQ(task_ctx) \
+  do { \
+    __asm__ __volatile__ ( \
+      "msr elr_el1, %0\n" \
+      "mov sp, %1\n" \
+      "ldr x30, [%2, #8 * 30]\n" \
+      "ldp x28, x29, [%2, #16 * 14]\n" \
+      "ldp x26, x27, [%2, #16 * 13]\n" \
+      "ldp x24, x25, [%2, #16 * 12]\n" \
+      "ldp x22, x23, [%2, #16 * 11]\n" \
+      "ldp x20, x21, [%2, #16 * 10]\n" \
+      "ldp x18, x19, [%2, #16 * 9]\n" \
+      "ldp x16, x17, [%2, #16 * 8]\n" \
+      "ldp x14, x15, [%2, #16 * 7]\n" \
+      "ldp x12, x13, [%2, #16 * 6]\n" \
+      "ldp x10, x11, [%2, #16 * 5]\n" \
+      "ldp x8, x9, [%2, #16 * 4]\n" \
+      "ldp x6, x7, [%2, #16 * 3]\n" \
+      "ldp x4, x5, [%2, #16 * 2]\n" \
+      "ldp x2, x3, [%2, #16 * 1]\n" \
+      "ldp x0, x1, [%2, #16 * 0]\n" \
+      "eret\n" \
+      : \
+      : "r" (task_ctx.pc), "r" (task_ctx.sp), "r" (task_ctx.x) \
+    ); \
+    __builtin_unreachable(); \
+  } while (0)
+
 
 typedef enum {
   TASK_STATE_NONE, // If not allocated or terminated
@@ -87,7 +112,7 @@ typedef enum {
 
 typedef struct {
   uintptr_t sp;
-  uintptr_t pc;
+  uintptr_t pc;  // Actually ELR_EL1
   uint64_t x[31];
 } TaskContext;
 
@@ -96,7 +121,7 @@ typedef struct {
   TaskState state;
   TaskContext ctx;
 
-  __attribute__((aligned(16)))
+  __attribute__((aligned(16))) // Aarch64 requires 16-byte alignment
   uint8_t stack[TASK_STACK_SIZE];
 
 } Task;
@@ -105,12 +130,20 @@ typedef struct {
   uint32_t task_count;
   uint32_t current_task;
   uint64_t time_slice_cntp_tval;
+  EndIRQCallback end_irq_callback;
   Task task_list[MAX_TASKS];
 } SchedContext;
 
 
 SchedContext sched_ctx;
 
+void print_task_ctx(uint64_t id) {
+  TaskContext* ctx = &sched_ctx.task_list[id].ctx;
+  k_printf("Task %lu context:\n", id);
+  k_printf("  sp:  0x%lx\n", ctx->sp);
+  k_printf("  pc:  0x%lx\n", ctx->pc);
+  k_printf("  x30: 0x%lx\n", ctx->x[30]);
+}
 
 // TODO: create interface with fn ptrs
 static void stop_timer(void) {
@@ -147,15 +180,20 @@ static int64_t determine_next_task(void) {
   return -1;  // No tasks ready, go idle or smth
 }
 
-static void switch_context(uint32_t new_task_idx) {
+// Switch context to new_task_idx, calls IRQ end callback with intid
+static void switch_context(uint32_t new_task_idx, uint32_t intid) {
   sched_ctx.task_list[new_task_idx].state = TASK_STATE_RUNNING;
+  sched_ctx.end_irq_callback(intid);
+
   start_timer();
-  RESTORE_CONTEXT(sched_ctx.task_list[new_task_idx].ctx);
+
+  RESTORE_CONTEXT_FROM_IRQ(sched_ctx.task_list[new_task_idx].ctx);
 }
 
-void sched_init(uint64_t time_slice_us) {
+void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
   memset(&sched_ctx, 0, sizeof(SchedContext));
   sched_ctx.time_slice_cntp_tval = US_TO_CNTP_TVAL(time_slice_us);
+  sched_ctx.end_irq_callback = end_irq_callback;
 }
 
 int sched_start(void) {
@@ -169,7 +207,7 @@ int sched_start(void) {
   return 0;
 }
 
-void sched_timer_irq_handler(void) {
+void sched_timer_irq_handler(uint32_t intid) {
   stop_timer();
   SAVE_CONTEXT(sched_ctx.task_list[sched_ctx.current_task].ctx);
 
@@ -178,7 +216,8 @@ void sched_timer_irq_handler(void) {
   }
 
   int64_t next_task_idx = determine_next_task();
-  k_printf("%ld\n", next_task_idx);
+  k_printf("next_task_idx: %ld\n", next_task_idx);
+  print_task_ctx(next_task_idx);
   if (next_task_idx < 0) {
     start_timer();
     sched_idle();
@@ -192,7 +231,7 @@ void sched_timer_irq_handler(void) {
     sched_ctx.current_task = next_task_idx;
   }
 
-  switch_context(next_task_idx);
+  switch_context(next_task_idx, intid);
 }
 
 bool sched_create_task(void (*task_func)(void)) {
@@ -207,6 +246,7 @@ bool sched_create_task(void (*task_func)(void)) {
   Task* new_task = &sched_ctx.task_list[new_task_idx];
 
   new_task->ctx.sp = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
+  new_task->ctx.pc = (uint64_t)(uintptr_t)task_func;
   new_task->ctx.x[30] = (uint64_t)(uintptr_t)task_func;
 
   new_task->state = TASK_STATE_READY;

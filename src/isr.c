@@ -18,14 +18,13 @@ void sync_exception_handler(void) {
 
 void irq_exception_handler(void) {
     uint32_t intid = gicc_get_intid_and_ack();
-    // k_puts("irq_exception_handler\r\n");
     switch (intid) {
     case UART_IRQ:
         pl011_getc();
         break;
     case EL1_PHY_TIM_IRQ:
-        k_printf("Got EL1 PHY TIM IRQ\n");
-        sched_timer_irq_handler();
+        k_printf("Got EL1_PHY_TIM_IRQ\n");
+        sched_timer_irq_handler(EL1_PHY_TIM_IRQ);
         break;
     default:
         k_printf("Got unknown IRQ with ID %x\n", intid);

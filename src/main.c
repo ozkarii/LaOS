@@ -20,17 +20,25 @@ void console_loop_task(void) {
   console_loop("#");
 }
 
-void hello_laudes_task(void) {
+void task_0(void) {
+  int counter = 0;
   while (1) {
-    k_printf("lau timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
+    //print_task_ctx(0);
+    //k_printf("task_0 running, timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
+    k_printf("task_0 running, counter: %d\r\n", counter);
     for (volatile int i = 0; i < 80000000; i++);
+    counter++;
   }
 }
 
-void hello_world_task(void) {
+void task_1(void) {
+  int counter = 0;
   while (1) {
-    k_printf("world timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
+    //print_task_ctx(1);
+    //k_printf("task_1 running, timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
+    k_printf("task_1 running, counter: %d\r\n", counter);
     for (volatile int i = 0; i < 80000000; i++);
+    counter += 2;
   }
 }
 
@@ -56,9 +64,9 @@ int c_entry() {
 
   startup_logs();
 
-  sched_init(1000000);
-  sched_create_task(hello_laudes_task);
-  sched_create_task(hello_world_task);
+  sched_init(1000000, gicc_end_irq);
+  sched_create_task(task_0);
+  sched_create_task(task_1);
   sched_start();
 
   return 0;
