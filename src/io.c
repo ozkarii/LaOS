@@ -3,8 +3,7 @@
 #include "pl011.h"
 #include "stdio.h"
 #include "io.h"
-
-#define EOF (-1)
+#include "io-buffer.h"
 
 void k_putchar(const char c) {
   pl011_putc(c);
@@ -19,7 +18,7 @@ void k_puts(const char* s) {
 }
 
 char k_getchar(void) {
-  return pl011_getc();
+  return serial_buffer_getc();
 }
 
 char* k_gets(char* s, int max_len) {

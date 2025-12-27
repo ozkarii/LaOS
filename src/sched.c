@@ -7,37 +7,22 @@
 #define TASK_STACK_SIZE 0x4000  // 16 KB
 #define US_TO_CNTP_TVAL(us) ((us) * GET_TIMER_FREQ() / 1000000ULL)
 
-#define SAVE_CONTEXT(task_ctx) \
+
+// Switch context to initialized task (not from IRQ handler)
+#define JUMP_TO_INITIAL_TASK(task_ctx) \
   do { \
-      __asm__ __volatile__ ( \
-        "mov x0, sp\n" \
-        "add x0, x0, #128\n" \
-        "str x0, [%0]\n" \
-        : \
-        : "r" (&task_ctx.sp) \
-        : "x0", "memory" \
-      ); \
     __asm__ __volatile__ ( \
-      "stp x0, x1, [%0, #16 * 0]\n" \
-      "stp x2, x3, [%0, #16 * 1]\n" \
-      "stp x4, x5, [%0, #16 * 2]\n" \
-      "stp x6, x7, [%0, #16 * 3]\n" \
-      "stp x8, x9, [%0, #16 * 4]\n" \
-      "stp x10, x11, [%0, #16 * 5]\n" \
-      "stp x12, x13, [%0, #16 * 6]\n" \
-      "stp x14, x15, [%0, #16 * 7]\n" \
-      "stp x16, x17, [%0, #16 * 8]\n" \
-      "stp x18, x19, [%0, #16 * 9]\n" \
-      "stp x20, x21, [%0, #16 * 10]\n" \
-      "stp x22, x23, [%0, #16 * 11]\n" \
-      "stp x24, x25, [%0, #16 * 12]\n" \
-      "stp x26, x27, [%0, #16 * 13]\n" \
-      "stp x28, x29, [%0, #16 * 14]\n" \
-      "str x30, [%0, #8 * 30]\n" \
+      "mov sp, %0\n" \
+      "br %1\n" \
       : \
-      : "r" (task_ctx.x) \
-      : "memory" \
+      : "r" (task_ctx.sp), "r" (task_ctx.pc) \
     ); \
+    __builtin_unreachable(); \
+  } while (0)
+  
+
+#define SAVE_ELR_EL1(task_ctx) \
+  do { \
     __asm__ __volatile__ ( \
       "mrs x0, elr_el1\n" \
       "str x0, [%0]\n" \
@@ -47,57 +32,30 @@
     ); \
   } while (0)
 
-#define RESTORE_CONTEXT(task_ctx) \
-  do { \
-    __asm__ __volatile__ ( \
-      "mov sp, %0\n" \
-      "ldr x30, [%1, #8 * 30]\n" \
-      "ldp x28, x29, [%1, #16 * 14]\n" \
-      "ldp x26, x27, [%1, #16 * 13]\n" \
-      "ldp x24, x25, [%1, #16 * 12]\n" \
-      "ldp x22, x23, [%1, #16 * 11]\n" \
-      "ldp x20, x21, [%1, #16 * 10]\n" \
-      "ldp x18, x19, [%1, #16 * 9]\n" \
-      "ldp x16, x17, [%1, #16 * 8]\n" \
-      "ldp x14, x15, [%1, #16 * 7]\n" \
-      "ldp x12, x13, [%1, #16 * 6]\n" \
-      "ldp x10, x11, [%1, #16 * 5]\n" \
-      "ldp x8, x9, [%1, #16 * 4]\n" \
-      "ldp x6, x7, [%1, #16 * 3]\n" \
-      "ldp x4, x5, [%1, #16 * 2]\n" \
-      "ldp x2, x3, [%1, #16 * 1]\n" \
-      "ldp x0, x1, [%1, #16 * 0]\n" \
-      "br x30\n" \
-      : \
-      : "r" (task_ctx.sp), "r" (task_ctx.x) \
-    ); \
-    __builtin_unreachable(); \
-  } while (0)
-
 #define RESTORE_CONTEXT_FROM_IRQ(task_ctx) \
   do { \
     __asm__ __volatile__ ( \
       "msr elr_el1, %0\n" \
       "mov sp, %1\n" \
-      "ldr x30, [%2, #8 * 30]\n" \
-      "ldp x28, x29, [%2, #16 * 14]\n" \
-      "ldp x26, x27, [%2, #16 * 13]\n" \
-      "ldp x24, x25, [%2, #16 * 12]\n" \
-      "ldp x22, x23, [%2, #16 * 11]\n" \
-      "ldp x20, x21, [%2, #16 * 10]\n" \
-      "ldp x18, x19, [%2, #16 * 9]\n" \
-      "ldp x16, x17, [%2, #16 * 8]\n" \
-      "ldp x14, x15, [%2, #16 * 7]\n" \
-      "ldp x12, x13, [%2, #16 * 6]\n" \
-      "ldp x10, x11, [%2, #16 * 5]\n" \
-      "ldp x8, x9, [%2, #16 * 4]\n" \
-      "ldp x6, x7, [%2, #16 * 3]\n" \
-      "ldp x4, x5, [%2, #16 * 2]\n" \
-      "ldp x2, x3, [%2, #16 * 1]\n" \
-      "ldp x0, x1, [%2, #16 * 0]\n" \
+      "ldr x30, [sp], #8\n" \
+      "ldp x29, x28, [sp], #16\n" \
+      "ldp x27, x26, [sp], #16\n" \
+      "ldp x25, x24, [sp], #16\n" \
+      "ldp x23, x22, [sp], #16\n" \
+      "ldp x21, x20, [sp], #16\n" \
+      "ldp x19, x18, [sp], #16\n" \
+      "ldp x17, x16, [sp], #16\n" \
+      "ldp x15, x14, [sp], #16\n" \
+      "ldp x13, x12, [sp], #16\n" \
+      "ldp x11, x10, [sp], #16\n" \
+      "ldp x9, x8, [sp], #16\n" \
+      "ldp x7, x6, [sp], #16\n" \
+      "ldp x5, x4, [sp], #16\n" \
+      "ldp x3, x2, [sp], #16\n" \
+      "ldp x1, x0, [sp], #16\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.pc), "r" (task_ctx.sp), "r" (task_ctx.x) \
+      : "r" (task_ctx.pc), "r" (task_ctx.sp) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -112,8 +70,7 @@ typedef enum {
 
 typedef struct {
   uintptr_t sp;
-  uintptr_t pc;  // Actually ELR_EL1
-  uint64_t x[31];
+  uintptr_t pc;
 } TaskContext;
 
 typedef struct {
@@ -136,14 +93,6 @@ typedef struct {
 
 
 SchedContext sched_ctx;
-
-void print_task_ctx(uint64_t id) {
-  TaskContext* ctx = &sched_ctx.task_list[id].ctx;
-  k_printf("Task %lu context:\n", id);
-  k_printf("  sp:  0x%lx\n", ctx->sp);
-  k_printf("  pc:  0x%lx\n", ctx->pc);
-  k_printf("  x30: 0x%lx\n", ctx->x[30]);
-}
 
 // TODO: create interface with fn ptrs
 static void stop_timer(void) {
@@ -203,21 +152,20 @@ int sched_start(void) {
   }
   sched_ctx.current_task = 0;
   sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_RUNNING;
-  RESTORE_CONTEXT(sched_ctx.task_list[0].ctx);
+  JUMP_TO_INITIAL_TASK(sched_ctx.task_list[0].ctx);
   return 0;
 }
 
-void sched_timer_irq_handler(uint32_t intid) {
+void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   stop_timer();
-  SAVE_CONTEXT(sched_ctx.task_list[sched_ctx.current_task].ctx);
 
   if (sched_ctx.task_list[sched_ctx.current_task].state == TASK_STATE_RUNNING) {
     sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_READY;
   }
 
   int64_t next_task_idx = determine_next_task();
-  k_printf("next_task_idx: %ld\n", next_task_idx);
-  print_task_ctx(next_task_idx);
+  //k_printf("next_task_idx: %ld\n", next_task_idx);
+
   if (next_task_idx < 0) {
     start_timer();
     sched_idle();
@@ -228,6 +176,8 @@ void sched_timer_irq_handler(uint32_t intid) {
     return;  // No need to switch context if task didn't change
   }
   else {
+    SAVE_ELR_EL1(sched_ctx.task_list[sched_ctx.current_task].ctx);
+    sched_ctx.task_list[sched_ctx.current_task].ctx.sp = sp_after_ctx_save;
     sched_ctx.current_task = next_task_idx;
   }
 
@@ -247,10 +197,7 @@ bool sched_create_task(void (*task_func)(void)) {
 
   new_task->ctx.sp = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
   new_task->ctx.pc = (uint64_t)(uintptr_t)task_func;
-  new_task->ctx.x[30] = (uint64_t)(uintptr_t)task_func;
-
   new_task->state = TASK_STATE_READY;
 
   return true;
 }
-

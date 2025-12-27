@@ -1,6 +1,8 @@
 #ifndef IO_H
 #define IO_H
 
+#define EOF (-1)
+
 void k_putchar(const char c);
 void k_puts(const char* s);
 

@@ -73,6 +73,9 @@ void console_loop(const char* prompt) {
 
     while (1) {
       char tmp = k_getchar();
+      if (tmp == (char)EOF) {
+        continue;
+      }
 
       // Execute current line and break if enter
       if (tmp == '\r') {

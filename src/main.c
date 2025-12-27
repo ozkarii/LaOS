@@ -23,8 +23,6 @@ void console_loop_task(void) {
 void task_0(void) {
   int counter = 0;
   while (1) {
-    //print_task_ctx(0);
-    //k_printf("task_0 running, timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
     k_printf("task_0 running, counter: %d\r\n", counter);
     for (volatile int i = 0; i < 80000000; i++);
     counter++;
@@ -34,11 +32,18 @@ void task_0(void) {
 void task_1(void) {
   int counter = 0;
   while (1) {
-    //print_task_ctx(1);
-    //k_printf("task_1 running, timval: %lx\r\n", GET_PHYS_TIMER_VALUE());
     k_printf("task_1 running, counter: %d\r\n", counter);
     for (volatile int i = 0; i < 80000000; i++);
     counter += 2;
+  }
+}
+
+void task_2(void) {
+  int counter = 0;
+  while (1) {
+    k_printf("task_2 running, counter: %d\r\n", counter);
+    for (volatile int i = 0; i < 80000000; i++);
+    counter += 4;
   }
 }
 
@@ -66,7 +71,10 @@ int c_entry() {
 
   sched_init(1000000, gicc_end_irq);
   sched_create_task(task_0);
-  sched_create_task(task_1);
+  //sched_create_task(task_1);
+  //sched_create_task(task_2);
+  sched_create_task(console_loop_task);
+
   sched_start();
 
   return 0;

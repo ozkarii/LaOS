@@ -9,6 +9,7 @@
 #include "platform.h"
 #include "armv8-a.h"
 #include "sched.h"
+#include "io-buffer.h"
 
 void sync_exception_handler(void) {
     k_puts("sync_exception_handler\r\n");
@@ -16,15 +17,15 @@ void sync_exception_handler(void) {
     while(1);
 }
 
-void irq_exception_handler(void) {
+void irq_exception_handler(uintptr_t sp_after_ctx_save) {
     uint32_t intid = gicc_get_intid_and_ack();
     switch (intid) {
     case UART_IRQ:
-        pl011_getc();
+        serial_buffer_putc(pl011_getc);
         break;
     case EL1_PHY_TIM_IRQ:
-        k_printf("Got EL1_PHY_TIM_IRQ\n");
-        sched_timer_irq_handler(EL1_PHY_TIM_IRQ);
+        //k_printf("Got EL1_PHY_TIM_IRQ\n");
+        sched_timer_irq_handler(EL1_PHY_TIM_IRQ, sp_after_ctx_save);
         break;
     default:
         k_printf("Got unknown IRQ with ID %x\n", intid);
