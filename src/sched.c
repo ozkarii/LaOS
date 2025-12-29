@@ -195,8 +195,8 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
 
   if (next_task_idx < 0) {
     start_timer();
+    sched_ctx.end_irq_callback(intid);
     sched_idle();
-    // TODO: Fix
   }
   else if (next_task_idx == sched_ctx.current_task) {
     start_timer();
