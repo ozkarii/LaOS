@@ -3,17 +3,30 @@
 #include "sched.h"
 #include "io.h"
 
-#define MAX_TASKS 16
+#define MAX_TASKS 32
 #define TASK_STACK_SIZE 0x4000  // 16 KB
 #define US_TO_CNTP_TVAL(us) ((us) * GET_TIMER_FREQ() / 1000000ULL)
 
 
 // Switch context to initialized task (not from IRQ handler)
-#define JUMP_TO_INITIAL_TASK(task_ctx) \
+#define INITIAL_JUMP_TO_TASK(task_ctx) \
   do { \
     __asm__ __volatile__ ( \
       "mov sp, %0\n" \
       "br %1\n" \
+      : \
+      : "r" (task_ctx.sp), "r" (task_ctx.pc) \
+    ); \
+    __builtin_unreachable(); \
+  } while (0)
+
+// Switch context to initialized task (from IRQ handler)
+#define INITIAL_JUMP_TO_TASK_FROM_IRQ(task_ctx) \
+  do { \
+    __asm__ __volatile__ ( \
+      "mov sp, %0\n" \
+      "msr elr_el1, %1\n" \
+      "eret\n" \
       : \
       : "r" (task_ctx.sp), "r" (task_ctx.pc) \
     ); \
@@ -66,6 +79,7 @@ typedef enum {
   TASK_STATE_READY,
   TASK_STATE_RUNNING,
   TASK_STATE_BLOCKED,
+  TASK_STATE_INITIAL
 } TaskState;
 
 typedef struct {
@@ -74,12 +88,14 @@ typedef struct {
 } TaskContext;
 
 typedef struct {
-  uint64_t id;
+  task_id_t id;
   TaskState state;
   TaskContext ctx;
-
-  __attribute__((aligned(16))) // Aarch64 requires 16-byte alignment
+  
+  uint8_t pre_stack_padding[256];
+  __attribute__((aligned(16))) // AArch64 requires 16-byte alignment
   uint8_t stack[TASK_STACK_SIZE];
+  uint8_t post_stack_padding[256];
 
 } Task;
 
@@ -105,24 +121,30 @@ static void start_timer(void) {
 }
 
 static void sched_idle(void) {
+  // Dummy
   while (1);
+}
+
+static inline bool is_schedulable_state(TaskState state) {
+  return (state == TASK_STATE_READY || state == TASK_STATE_INITIAL);
 }
 
 static int64_t determine_next_task(void) {
   // Simple FIFO: find the next task in ready state by looping through all tasks
-  uint32_t orig_task_idx = sched_ctx.current_task; 
+  uint32_t orig_task_idx = sched_ctx.current_task;
   uint32_t task_idx = orig_task_idx;
 
   // Loop until we find a ready task or wrap around back to original
   // TODO: use task_count to not loop over unused tasks
   do {
     task_idx = (task_idx + 1) % MAX_TASKS;
-    if (sched_ctx.task_list[task_idx].state == TASK_STATE_READY) {
+    if (is_schedulable_state(sched_ctx.task_list[task_idx].state)) {
       return task_idx;
     }
   } while (task_idx != orig_task_idx);
 
-  if (sched_ctx.task_list[orig_task_idx].state == TASK_STATE_READY) {
+  // Check if original task is still schedulable
+  if (is_schedulable_state(sched_ctx.task_list[orig_task_idx].state)) {
     return orig_task_idx;
   }
 
@@ -131,12 +153,17 @@ static int64_t determine_next_task(void) {
 
 // Switch context to new_task_idx, calls IRQ end callback with intid
 static void switch_context(uint32_t new_task_idx, uint32_t intid) {
+  bool initial = (sched_ctx.task_list[new_task_idx].state == TASK_STATE_INITIAL);
   sched_ctx.task_list[new_task_idx].state = TASK_STATE_RUNNING;
   sched_ctx.end_irq_callback(intid);
 
   start_timer();
 
-  RESTORE_CONTEXT_FROM_IRQ(sched_ctx.task_list[new_task_idx].ctx);
+  if (initial) {
+    INITIAL_JUMP_TO_TASK_FROM_IRQ(sched_ctx.task_list[new_task_idx].ctx);
+  } else {
+    RESTORE_CONTEXT_FROM_IRQ(sched_ctx.task_list[new_task_idx].ctx);
+  }
 }
 
 void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
@@ -152,7 +179,7 @@ int sched_start(void) {
   }
   sched_ctx.current_task = 0;
   sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_RUNNING;
-  JUMP_TO_INITIAL_TASK(sched_ctx.task_list[0].ctx);
+  INITIAL_JUMP_TO_TASK(sched_ctx.task_list[0].ctx);
   return 0;
 }
 
@@ -164,11 +191,12 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   }
 
   int64_t next_task_idx = determine_next_task();
-  //k_printf("next_task_idx: %ld\n", next_task_idx);
+  k_printf("next_task_idx: %ld\n", next_task_idx);
 
   if (next_task_idx < 0) {
     start_timer();
     sched_idle();
+    // TODO: Fix
   }
   else if (next_task_idx == sched_ctx.current_task) {
     start_timer();
@@ -197,7 +225,7 @@ bool sched_create_task(void (*task_func)(void)) {
 
   new_task->ctx.sp = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
   new_task->ctx.pc = (uint64_t)(uintptr_t)task_func;
-  new_task->state = TASK_STATE_READY;
+  new_task->state = TASK_STATE_INITIAL;
 
   return true;
 }

@@ -71,9 +71,9 @@ int c_entry() {
 
   sched_init(1000000, gicc_end_irq);
   sched_create_task(task_0);
-  //sched_create_task(task_1);
-  //sched_create_task(task_2);
-  sched_create_task(console_loop_task);
+  sched_create_task(task_1);
+  sched_create_task(task_2);
+  //sched_create_task(console_loop_task);
 
   sched_start();
 
