@@ -20,7 +20,7 @@ _Reset:
 
 _Init_sp:
     // Initialize the stack pointer for each core in EL3
-    adr x1, stack_top
+    ldr x1, =stack_top
     mrs x2, mpidr_el1
     and x2, x2, #0xFF      // x2 == CPU number.
     mov x3, #0x4000        // 16KB stack per core
