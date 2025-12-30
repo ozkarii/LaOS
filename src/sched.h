@@ -17,5 +17,6 @@ task_id_t sched_get_task_id(void);
 void sched_block_task(void);
 void sched_unblock_task(task_id_t task_id);
 void sched_yield(void);
+void sched_sleep(uint64_t sleep_us);
 
 #endif /* SCHED_H */
