@@ -24,7 +24,7 @@ void task_0(void) {
   int counter = 0;
   while (1) {
     k_printf("task_0 running, counter: %d\r\n", counter);
-    for (volatile int i = 0; i < 80000000; i++);
+    for (volatile int i = 0; i < 10000000; i++);
     counter++;
   }
 }
@@ -33,7 +33,7 @@ void task_1(void) {
   int counter = 0;
   while (1) {
     k_printf("task_1 running, counter: %d\r\n", counter);
-    for (volatile int i = 0; i < 80000000; i++);
+    for (volatile int i = 0; i < 10000000; i++);
     counter += 2;
   }
 }
@@ -42,8 +42,9 @@ void task_2(void) {
   int counter = 0;
   while (1) {
     k_printf("task_2 running, counter: %d\r\n", counter);
-    for (volatile int i = 0; i < 80000000; i++);
+    for (volatile int i = 0; i < 10000000; i++);
     counter += 4;
+    sched_yield();
   }
 }
 
