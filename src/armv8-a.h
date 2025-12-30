@@ -117,9 +117,9 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 /* REGISTER DUMP */
 
 static inline void cpu_dump_registers(void (*printf_func)(const char* format, ...)) {
-    printf_func("=== AArch64 Register Dump ===\n\n");
+    printf_func("\n========= Register Dump Start =========\n");
     
-    printf_func("--- General Purpose Registers ---\n");
+    printf_func("\n--- General Registers ---\n");
     printf_func("SP (x31):         0x%lx\n", GET_SP());
     printf_func("FP (x29):         0x%lx\n", GET_FP());
     printf_func("LR (x30):         0x%lx\n", GET_LR());
@@ -130,37 +130,41 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("X4:               0x%lx\n", GET_X4());
     printf_func("X5:               0x%lx\n", GET_X5());
     printf_func("X6:               0x%lx\n", GET_X6());
-    printf_func("X7:               0x%lx\n\n", GET_X7());
-    
-    printf_func("--- Exception State ---\n");
-    printf_func("CurrentEL:        0x%x (EL%u)\n", GET_CURRENT_EL(), GET_CURRENT_EL() >> 2);
-    if ((GET_CURRENT_EL() >> 2) < 3) {
-        printf_func("\n=====================================================\n");
-        return;
-    }
-    printf_func("ESR_EL1:          0x%x\n", GET_ESR_EL1());
-    printf_func("FAR_EL1:          0x%lx\n", GET_FAR_EL1());
+    printf_func("X7:               0x%lx\n", GET_X7());
     printf_func("DAIF:             0x%x\n", GET_DAIF());
     printf_func("NZCV:             0x%x\n", GET_NZCV());
-    printf_func("MPIDR_EL1:        0x%x\n\n", GET_MPIDR());
+    printf_func("CurrentEL:        0x%x (EL%u)\n", GET_CURRENT_EL(), GET_CURRENT_EL() >> 2);
 
-    printf_func("--- Memory Management ---\n");
+    if ((GET_CURRENT_EL() >> 2) < 1) {
+        printf_func("\n========= Register Dump End =========\n");
+        return;
+    }
+
+    printf_func("\n--- EL1 Registers ---\n");
+    printf_func("ESR_EL1:          0x%x (decode: https://esr.arm64.dev/#0x%x)\n",
+                GET_ESR_EL1(), GET_ESR_EL1());
+                printf_func("ELR_EL1:          0x%lx\n", GET_ELR_EL1());
+    printf_func("FAR_EL1:          0x%lx\n", GET_FAR_EL1());
+    printf_func("SPSR_EL1:         0x%x\n", GET_SPSR_EL1());
+    printf_func("MPIDR_EL1:        0x%x\n", GET_MPIDR());
+    printf_func("SCTLR_EL1:        0x%lx\n", GET_SCTLR_EL1());
+    printf_func("VBAR_EL1:         0x%lx\n", GET_VBAR_EL1());
+    printf_func("MAIR_EL1:         0x%lx\n", GET_MAIR_EL1());
+    printf_func("ACTLR_EL1:        0x%lx\n", GET_ACTLR_EL1());
     printf_func("TCR_EL1:          0x%lx\n", GET_TCR_EL1());
     printf_func("TTBR0_EL1:        0x%lx\n", GET_TTBR0_EL1());
-    printf_func("TTBR1_EL1:        0x%lx\n\n", GET_TTBR1_EL1());
+    printf_func("TTBR1_EL1:        0x%lx\n", GET_TTBR1_EL1());
 
-    printf_func("--- EL1 Registers ---\n");
-    printf_func("SCTLR_EL1:        0x%lx\n", GET_SCTLR_EL1());
-    printf_func("SPSR_EL1:         0x%x\n", GET_SPSR_EL1());
-    printf_func("ELR_EL1:          0x%lx\n", GET_ELR_EL1());
-    printf_func("VBAR_EL1:         0x%lx\n", GET_VBAR_EL1());
+    if ((GET_CURRENT_EL() >> 2) < 3) {
+        printf_func("\n========= Register Dump End =========\n");
+        return;
+    }
+
+    printf_func("\n--- SP Registers ---\n");
     printf_func("SP_EL1:           0x%lx\n", GET_SP_EL1());
     printf_func("SP_EL0:           0x%lx\n", GET_SP_EL0());
-    printf_func("MAIR_EL1:         0x%lx\n", GET_MAIR_EL1());
-    printf_func("ACTLR_EL1:        0x%lx\n\n", GET_ACTLR_EL1());
 
-
-    printf_func("--- EL3 Registers ---\n");
+    printf_func("\n--- EL3 Registers ---\n");
     printf_func("SCR_EL3:          0x%lx\n", GET_SCR_EL3());
     printf_func("SCTLR_EL3:        0x%lx\n", GET_SCTLR_EL3());
     printf_func("SPSR_EL3:         0x%x\n", GET_SPSR_EL3());
@@ -170,9 +174,9 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("VBAR_EL3:         0x%lx\n", GET_VBAR_EL3());
     printf_func("CPTR_EL3:         0x%lx\n", GET_CPTR_EL3());
     printf_func("MAIR_EL3:         0x%lx\n", GET_MAIR_EL3());
-    printf_func("ACTLR_EL3:        0x%lx\n\n", GET_ACTLR_EL3());
+    printf_func("ACTLR_EL3:        0x%lx\n", GET_ACTLR_EL3());
     
-    printf_func("=====================================================\n");
+    printf_func("\n========= Register Dump End =========\n");
 }
 
 #endif // CPU_H
