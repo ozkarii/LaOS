@@ -2,6 +2,7 @@
 #include "armv8-a.h"
 #include "sched.h"
 #include "io.h"
+#include "log.h"
 
 #define TASK_STACK_SIZE 0x4000  // 16 KB
 #define US_TO_CNTP_TVAL(us) ((us) * GET_TIMER_FREQ() / 1000000ULL)
@@ -305,15 +306,15 @@ static void switch_context_from_irq(Task* new_task, uint32_t intid) {
   start_timer();
 
   if (initial) {
-    k_printf("INITIAL_JUMP_TO_TASK_FROM_IRQ\r\n");
+    k_printf(LOG_SCHED "INITIAL_JUMP_TO_TASK_FROM_IRQ\r\n");
     INITIAL_JUMP_TO_TASK_FROM_IRQ(new_task->ctx);
   }
   else if (!new_task->preempted) {
-    k_printf("RESTORE_YIELDED_CONTEXT_FROM_IRQ\r\n");
+    k_printf(LOG_SCHED "RESTORE_YIELDED_CONTEXT_FROM_IRQ\r\n");
     RESTORE_YIELDED_CONTEXT_FROM_IRQ(new_task->ctx);
   }
   else {
-    k_printf("RESTORE_CONTEXT_FROM_IRQ\r\n");
+    k_printf(LOG_SCHED "RESTORE_CONTEXT_FROM_IRQ\r\n");
     RESTORE_CONTEXT_FROM_IRQ(new_task->ctx);
   }
 }
@@ -327,15 +328,15 @@ static void switch_context(Task* new_task) {
   start_timer();
 
   if (initial) {
-    k_printf("INITIAL_JUMP_TO_TASK\r\n");
+    k_printf(LOG_SCHED "INITIAL_JUMP_TO_TASK\r\n");
     INITIAL_JUMP_TO_TASK(new_task->ctx);
   }
   else if (!new_task->preempted) {
-    k_printf("RESTORE_CONTEXT\r\n");
+    k_printf(LOG_SCHED "RESTORE_CONTEXT\r\n");
     RESTORE_CONTEXT(new_task->ctx);
   }
   else {
-    k_printf("RESTORE_PREEMPTED_CONTEXT\r\n");
+    k_printf(LOG_SCHED "RESTORE_PREEMPTED_CONTEXT\r\n");
     RESTORE_PREEMPTED_CONTEXT(new_task->ctx);
   }
 }
@@ -366,7 +367,7 @@ static void wake_up_tasks() {
     if (sched_ctx.task_list[i].state == TASK_STATE_BLOCKED &&
         sched_ctx.task_list[i].sleep_until > 0 &&
         current_time >= sched_ctx.task_list[i].sleep_until) {
-      k_printf("Waking up task %ld\r\n", sched_ctx.task_list[i].id);
+      k_printf(LOG_SCHED "Waking up task %ld\r\n", sched_ctx.task_list[i].id);
       sched_ctx.task_list[i].state = TASK_STATE_READY;
       sched_ctx.task_list[i].sleep_until = 0;
     }
@@ -384,7 +385,7 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   }
 
   int64_t next_task_idx = determine_next_task();
-  k_printf("Preemtively switching from task %ld to task %ld\r\n",
+  k_printf(LOG_SCHED "Preemtively switching from task %ld to task %ld\r\n",
            current_task->id,
            (next_task_idx >= 0) ? sched_ctx.task_list[next_task_idx].id : -1);
 
@@ -465,7 +466,7 @@ static void sched_yield_inner(void) {
   current_task->preempted = false;
 
   int64_t next_task_idx = determine_next_task();
-  k_printf("Yielding from task %ld to task %ld\r\n",
+  k_printf(LOG_SCHED "Yielding from task %ld to task %ld\r\n",
            current_task->id,
            (next_task_idx >= 0) ? sched_ctx.task_list[next_task_idx].id : -1);
 
