@@ -14,7 +14,7 @@ LIBC_INCLUDEDIR := src/libc/include
 LIBC_BUILDDIR := $(BUILDDIR)/libc
 
 ASFLAGS = -g -march=armv8-a
-CFLAGS = -c -nostartfiles -std=gnu99 -ffreestanding -g -nostdlib -I$(LIBC_INCLUDEDIR) -Wall -Wextra -march=armv8-a -mgeneral-regs-only
+CFLAGS = -c -nostartfiles -std=gnu99 -ffreestanding -g -nostdlib -I$(LIBC_INCLUDEDIR) -Wall -Wextra -march=armv8-a -mgeneral-regs-only -mno-outline-atomics
 
 # Find source files
 SRC_C := $(wildcard $(SRCDIR)/*.c)
