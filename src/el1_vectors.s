@@ -45,6 +45,9 @@ vector_table_el1:
 
 // Push context macro
 .macro PUSH_CONTEXT
+    // Save x30 twice for RESTORE_PREEMPTED_CONTEXT
+    // Can also be used as temporary storage
+    str x30, [sp, #-8]!
     stp x0, x1, [sp, #-16]!
     stp x2, x3, [sp, #-16]!
     stp x4, x5, [sp, #-16]!
@@ -81,6 +84,8 @@ vector_table_el1:
     ldp x4, x5, [sp], #16
     ldp x2, x3, [sp], #16
     ldp x0, x1, [sp], #16
+    // Pop the extra x30 saved in PUSH_CONTEXT
+    add sp, sp, #8
 .endm
 
 

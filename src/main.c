@@ -15,6 +15,7 @@
 #include "platform.h"
 #include "pl011.h"
 #include "sched.h"
+#include "sem.h"
 
 void console_loop_task(void) {
   console_loop("#");
@@ -24,7 +25,7 @@ void task_0(void) {
   int counter = 0;
   while (1) {
     k_printf("task_0 running, counter: %d\r\n", counter);
-    for (volatile int i = 0; i < 80000000; i++);
+    for (volatile int i = 0; i < 10000000; i++);
     counter++;
   }
 }
@@ -48,6 +49,17 @@ void task_2(void) {
   }
 }
 
+void task_3(void) {
+  int counter = 0;
+  while (1) {
+    k_printf("task_3 running, counter: %d\r\n", counter);
+    for (volatile int i = 0; i < 10000000; i++);
+    counter += 8;
+    sched_yield();
+  }
+}
+
+
 void task_sleep_demo(void) {
   int counter = 0;
   while (1) {
@@ -55,6 +67,26 @@ void task_sleep_demo(void) {
     sched_sleep(5000000);  // Sleep for 5 seconds
     k_printf("task_sleep_demo: woke up, counter: %d\r\n", counter);
     counter++;
+  }
+}
+
+KSemaphore test_sem;
+
+void sem_wait_task(void) {
+  k_sem_init(&test_sem, 0, 1);
+  while (1) {
+    k_printf("waiting for semaphore\r\n");
+    k_sem_wait(&test_sem);
+    k_printf("got semaphore\r\n");
+  }
+}
+
+void sem_post_task(void) {
+  while (1) {
+    k_printf("sleeping before posting to semaphore\r\n");
+    sched_sleep(2000000);  // Sleep for 2 seconds
+    k_sem_post(&test_sem);
+    k_printf("posted to semaphore\r\n");
   }
 }
 
@@ -81,11 +113,14 @@ int c_entry() {
   startup_logs();
 
   sched_init(1000000, gicc_end_irq);
-  sched_create_task(task_0);
+  //sched_create_task(task_0);
   //sched_create_task(task_1);
   //sched_create_task(task_2);
-  sched_create_task(task_sleep_demo);
+  //sched_create_task(task_3);
+  //sched_create_task(task_sleep_demo);
   //sched_create_task(console_loop_task);
+  sched_create_task(sem_wait_task);
+  sched_create_task(sem_post_task);
 
   sched_start();
 

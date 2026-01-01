@@ -4,7 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef uint64_t task_id_t;
+#define MAX_TASKS 32
+
+typedef int64_t task_id_t;
+#define NO_TASK ((task_id_t)(-1))
+
 typedef void (*EndIRQCallback)(uint32_t);
 
 // TODO: refactor function return values
