@@ -16,7 +16,5 @@ typedef struct KSemaphore {
 int k_sem_init(KSemaphore* sem, uint64_t initial_value, uint64_t max_value);
 int k_sem_wait(KSemaphore* sem);
 int k_sem_post(KSemaphore* sem);
-int k_sem_destroy(KSemaphore* sem);
-
 
 #endif /* SEM_H */

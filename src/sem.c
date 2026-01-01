@@ -62,8 +62,3 @@ int k_sem_post(KSemaphore* sem) {
 
   return 0;
 }
-
-int k_sem_destroy(KSemaphore* sem) {
-
-}
-
