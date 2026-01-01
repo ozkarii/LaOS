@@ -174,10 +174,7 @@
 
 
 // Restore context of a preempted task from non-IRQ context
-// Jumps to task_ctx.pc after restoring and restores original
-// x30 immideately after that.
-// PUSH_CONTEXT in el1_vectors must store extra instance of x30
-// before pushing all general purpose registers in the normal order.
+// Jumps to task_ctx.pc and discards original x30 (problematic)
 #define RESTORE_PREEMPTED_CONTEXT(task_ctx) \
   do { \
     __asm__ __volatile__ ( \
@@ -200,7 +197,6 @@
       "ldp x2, x3, [sp], #16\n" \
       "ldp x0, x1, [sp], #16\n" \
       "br x30\n" \
-      "ldr x30, [sp], #8\n" \
       : \
       : "r" (task_ctx.sp), "r" (&task_ctx.pc) \
       : "memory" \
