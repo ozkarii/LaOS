@@ -46,38 +46,6 @@
     ); \
   } while (0)
 
-// Saves context but x30 is replaced with the address of return_label.
-// Address of return_label is stored in task_ctx.pc.
-#define SAVE_CONTEXT_AND_LINK_TO_LABEL(task_ctx, return_label) \
-  do { \
-    __asm__ __volatile__ goto ( \
-      "stp x0, x1, [sp, #-16]!\n" \
-      "stp x2, x3, [sp, #-16]!\n" \
-      "stp x4, x5, [sp, #-16]!\n" \
-      "stp x6, x7, [sp, #-16]!\n" \
-      "stp x8, x9, [sp, #-16]!\n" \
-      "stp x10, x11, [sp, #-16]!\n" \
-      "stp x12, x13, [sp, #-16]!\n" \
-      "stp x14, x15, [sp, #-16]!\n" \
-      "stp x16, x17, [sp, #-16]!\n" \
-      "stp x18, x19, [sp, #-16]!\n" \
-      "stp x20, x21, [sp, #-16]!\n" \
-      "stp x22, x23, [sp, #-16]!\n" \
-      "stp x24, x25, [sp, #-16]!\n" \
-      "stp x26, x27, [sp, #-16]!\n" \
-      "stp x28, x29, [sp, #-16]!\n" \
-      "adr x0, %l[" #return_label "]\n" \
-      "str x0, [%0]\n" \
-      "mov x30, x0\n" \
-      "str x30, [sp, #-8]!\n" \
-      "mov x0, sp\n" \
-      "str x0, [%1]\n" \
-      : \
-      : "r" (&task_ctx.pc), "r" (&task_ctx.sp) \
-      : "x0", "memory" \
-      : return_label \
-    ); \
-  } while (0)
 
 // Restore full context from IRQ context and return from exception
 // Assumes that task_ctx.sp points to the saved context on the stack,
@@ -111,99 +79,6 @@
     __builtin_unreachable(); \
   } while (0)
 
-// Restore full context from non-IRQ context
-// Assumes that task_ctx.sp points to the saved context on the stack,
-// starting from x30 down to x0.
-// Jumps to x30 (link register) after restoring.
-#define RESTORE_CONTEXT(task_ctx) \
-  do { \
-    __asm__ __volatile__ ( \
-      "mov sp, %0\n" \
-      "ldr x30, [sp], #8\n" \
-      "ldp x28, x29, [sp], #16\n" \
-      "ldp x26, x27, [sp], #16\n" \
-      "ldp x24, x25, [sp], #16\n" \
-      "ldp x22, x23, [sp], #16\n" \
-      "ldp x20, x21, [sp], #16\n" \
-      "ldp x18, x19, [sp], #16\n" \
-      "ldp x16, x17, [sp], #16\n" \
-      "ldp x14, x15, [sp], #16\n" \
-      "ldp x12, x13, [sp], #16\n" \
-      "ldp x10, x11, [sp], #16\n" \
-      "ldp x8, x9, [sp], #16\n" \
-      "ldp x6, x7, [sp], #16\n" \
-      "ldp x4, x5, [sp], #16\n" \
-      "ldp x2, x3, [sp], #16\n" \
-      "ldp x0, x1, [sp], #16\n" \
-      "br x30\n" \
-      : \
-      : "r" (task_ctx.sp) \
-    ); \
-    __builtin_unreachable(); \
-  } while (0)
-
-// Restore context from yielded task but exit via eret
-// Sets elr_el1 to x30 (saved return address) so eret jumps there
-#define RESTORE_YIELDED_CONTEXT_FROM_IRQ(task_ctx) \
-  do { \
-    __asm__ __volatile__ ( \
-      "mov sp, %0\n" \
-      "ldr x30, [sp], #8\n" \
-      "msr elr_el1, x30\n" \
-      "ldp x28, x29, [sp], #16\n" \
-      "ldp x26, x27, [sp], #16\n" \
-      "ldp x24, x25, [sp], #16\n" \
-      "ldp x22, x23, [sp], #16\n" \
-      "ldp x20, x21, [sp], #16\n" \
-      "ldp x18, x19, [sp], #16\n" \
-      "ldp x16, x17, [sp], #16\n" \
-      "ldp x14, x15, [sp], #16\n" \
-      "ldp x12, x13, [sp], #16\n" \
-      "ldp x10, x11, [sp], #16\n" \
-      "ldp x8, x9, [sp], #16\n" \
-      "ldp x6, x7, [sp], #16\n" \
-      "ldp x4, x5, [sp], #16\n" \
-      "ldp x2, x3, [sp], #16\n" \
-      "ldp x0, x1, [sp], #16\n" \
-      "eret\n" \
-      : \
-      : "r" (task_ctx.sp) \
-    ); \
-    __builtin_unreachable(); \
-  } while (0)
-
-
-// Restore context of a preempted task from non-IRQ context
-// Jumps to task_ctx.pc and discards original x30 (problematic)
-#define RESTORE_PREEMPTED_CONTEXT(task_ctx) \
-  do { \
-    __asm__ __volatile__ ( \
-      "ldr x30, [%1]\n" \
-      "mov sp, %0\n" \
-      "add sp, sp, #8\n" \
-      "ldp x28, x29, [sp], #16\n" \
-      "ldp x26, x27, [sp], #16\n" \
-      "ldp x24, x25, [sp], #16\n" \
-      "ldp x22, x23, [sp], #16\n" \
-      "ldp x20, x21, [sp], #16\n" \
-      "ldp x18, x19, [sp], #16\n" \
-      "ldp x16, x17, [sp], #16\n" \
-      "ldp x14, x15, [sp], #16\n" \
-      "ldp x12, x13, [sp], #16\n" \
-      "ldp x10, x11, [sp], #16\n" \
-      "ldp x8, x9, [sp], #16\n" \
-      "ldp x6, x7, [sp], #16\n" \
-      "ldp x4, x5, [sp], #16\n" \
-      "ldp x2, x3, [sp], #16\n" \
-      "ldp x0, x1, [sp], #16\n" \
-      "br x30\n" \
-      : \
-      : "r" (task_ctx.sp), "r" (&task_ctx.pc) \
-      : "memory" \
-    ); \
-    __builtin_unreachable(); \
-  } while (0)
-
 typedef enum {
   TASK_STATE_NONE, // If not allocated or terminated
   TASK_STATE_READY,
@@ -222,7 +97,6 @@ typedef struct {
   TaskState state;
   TaskContext ctx;
   uint64_t sleep_until;  // Timer count value when task should wake up
-  bool preempted;
   
   uint8_t pre_stack_padding[256];
   __attribute__((aligned(16))) // AArch64 requires 16-byte alignment
@@ -243,13 +117,17 @@ typedef struct {
 SchedContext sched_ctx;
 
 // TODO: create interface with fn ptrs
-static void stop_timer(void) {
+static inline void stop_timer(void) {
   DISABLE_PHYS_TIMER();
 }
 
-static void start_timer(void) {
+static inline void start_timer(void) {
   SET_PHYS_TIMER_VALUE(sched_ctx.time_slice_cntp_tval);
   ENABLE_PHYS_TIMER();
+}
+
+static inline void trigger_timer_irq(void) {
+  SET_PHYS_TIMER_VALUE(0);
 }
 
 __attribute__((unused))
@@ -302,38 +180,10 @@ static void switch_context_from_irq(Task* new_task, uint32_t intid) {
   start_timer();
 
   if (initial) {
-    k_printf(LOG_SCHED "INITIAL_JUMP_TO_TASK_FROM_IRQ\r\n");
     INITIAL_JUMP_TO_TASK_FROM_IRQ(new_task->ctx);
   }
-  else if (!new_task->preempted) {
-    k_printf(LOG_SCHED "RESTORE_YIELDED_CONTEXT_FROM_IRQ\r\n");
-    RESTORE_YIELDED_CONTEXT_FROM_IRQ(new_task->ctx);
-  }
   else {
-    k_printf(LOG_SCHED "RESTORE_CONTEXT_FROM_IRQ\r\n");
     RESTORE_CONTEXT_FROM_IRQ(new_task->ctx);
-  }
-}
-
-// Switch context to new_task_idx from non-IRQ context
-static void switch_context(Task* new_task) {
-  bool initial = (new_task->state == TASK_STATE_INITIAL);
-
-  new_task->state = TASK_STATE_RUNNING;
-
-  start_timer();
-
-  if (initial) {
-    k_printf(LOG_SCHED "INITIAL_JUMP_TO_TASK\r\n");
-    INITIAL_JUMP_TO_TASK(new_task->ctx);
-  }
-  else if (!new_task->preempted) {
-    k_printf(LOG_SCHED "RESTORE_CONTEXT\r\n");
-    RESTORE_CONTEXT(new_task->ctx);
-  }
-  else {
-    k_printf(LOG_SCHED "RESTORE_PREEMPTED_CONTEXT\r\n");
-    RESTORE_PREEMPTED_CONTEXT(new_task->ctx);
   }
 }
 
@@ -346,13 +196,17 @@ void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
 
 int sched_start(void) {
   start_timer();
-  if (sched_ctx.task_count == 0) {
-    return -1;
+  if (sched_ctx.task_count > 0) {
+    sched_ctx.current_task = 0;
+  } else {
+    sched_ctx.current_task = IDLE_TASK_INDEX;
   }
-  sched_ctx.current_task = 0;
+
   sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_RUNNING;
 
-  INITIAL_JUMP_TO_TASK(sched_ctx.task_list[0].ctx);
+  k_printf(LOG_SCHED "switch: start -> %ld\r\n",
+           sched_ctx.task_list[sched_ctx.current_task].id);
+  INITIAL_JUMP_TO_TASK(sched_ctx.task_list[sched_ctx.current_task].ctx);
   return 0;
 }
 
@@ -363,7 +217,7 @@ static void wake_up_tasks() {
     if (sched_ctx.task_list[i].state == TASK_STATE_BLOCKED &&
         sched_ctx.task_list[i].sleep_until > 0 &&
         current_time >= sched_ctx.task_list[i].sleep_until) {
-      k_printf(LOG_SCHED "Waking up task %ld\r\n", sched_ctx.task_list[i].id);
+      k_printf(LOG_SCHED "wakeup: %ld\r\n", sched_ctx.task_list[i].id);
       sched_ctx.task_list[i].state = TASK_STATE_READY;
       sched_ctx.task_list[i].sleep_until = 0;
     }
@@ -381,9 +235,9 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   }
 
   int64_t next_task_idx = determine_next_task();
-  k_printf(LOG_SCHED "Preemtively switching from task %ld to task %ld\r\n",
+  k_printf(LOG_SCHED "switch: %ld -> %ld\r\n",
            current_task->id,
-           (next_task_idx >= 0) ? sched_ctx.task_list[next_task_idx].id : -1);
+           sched_ctx.task_list[next_task_idx].id);
 
   if (next_task_idx == sched_ctx.current_task) {
     start_timer();
@@ -397,7 +251,6 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   // General purpose registers have been saved already to the stack
   SAVE_ELR_EL1(current_task->ctx);
   current_task->ctx.sp = sp_after_ctx_save;
-  current_task->preempted = true;
   sched_ctx.current_task = next_task_idx;
 
   switch_context_from_irq(next_task, intid);
@@ -448,35 +301,7 @@ void sched_sleep(uint64_t sleep_us) {
   sched_block_task();
 }
 
-static void sched_yield_inner(void) {
-  stop_timer();
-  wake_up_tasks();
-
-  Task* current_task = &sched_ctx.task_list[sched_ctx.current_task];
-
-  // Only set to READY if it was RUNNING, not if BLOCKED for example
-  if (current_task->state == TASK_STATE_RUNNING) {
-    current_task->state = TASK_STATE_READY;
-  }
-
-  current_task->preempted = false;
-
-  int64_t next_task_idx = determine_next_task();
-  k_printf(LOG_SCHED "Yielding from task %ld to task %ld\r\n",
-           current_task->id,
-           (next_task_idx >= 0) ? sched_ctx.task_list[next_task_idx].id : -1);
-
-  // Context is saved already to stack, so we need to call switch_context
-  // even if the task doesn't change
-
-  sched_ctx.current_task = next_task_idx;
-
-  switch_context(&sched_ctx.task_list[next_task_idx]);
-}
-
 void sched_yield(void) {
-  SAVE_CONTEXT_AND_LINK_TO_LABEL(sched_ctx.task_list[sched_ctx.current_task].ctx, sched_yield_return);
-  sched_yield_inner();
-sched_yield_return:
+  trigger_timer_irq();
   return;
 }
