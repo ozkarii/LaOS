@@ -3,7 +3,7 @@
 
 #define SERIAL_BUFFER_SIZE 256
 
-typedef struct {
+typedef struct SerialBuffer {
   size_t head;
   size_t tail;
   size_t count;

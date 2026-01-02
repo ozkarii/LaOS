@@ -88,12 +88,12 @@ typedef enum {
   TASK_STATE_INITIAL
 } TaskState;
 
-typedef struct {
+typedef struct TaskContext {
   uintptr_t sp;
   uintptr_t pc;
 } TaskContext;
 
-typedef struct {
+typedef struct Task {
   task_id_t id;
   TaskState state;
   TaskContext ctx;
@@ -106,7 +106,7 @@ typedef struct {
 
 } Task;
 
-typedef struct {
+typedef struct SchedContext {
   Spinlock lock;
   uint32_t task_count;
   uint32_t current_task;
