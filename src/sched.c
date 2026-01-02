@@ -3,6 +3,7 @@
 #include "sched.h"
 #include "io.h"
 #include "log.h"
+#include "spinlock.h"
 
 #define TASK_STACK_SIZE 0x4000  // 16 KB
 #define US_TO_CNTP_TVAL(us) ((us) * GET_TIMER_FREQ() / 1000000ULL)
@@ -106,6 +107,7 @@ typedef struct {
 } Task;
 
 typedef struct {
+  Spinlock lock;
   uint32_t task_count;
   uint32_t current_task;
   uint64_t time_slice_cntp_tval;
@@ -180,9 +182,11 @@ static void switch_context_from_irq(Task* new_task, uint32_t intid) {
   start_timer();
 
   if (initial) {
+    spinlock_release(&sched_ctx.lock);
     INITIAL_JUMP_TO_TASK_FROM_IRQ(new_task->ctx);
   }
   else {
+    spinlock_release(&sched_ctx.lock);
     RESTORE_CONTEXT_FROM_IRQ(new_task->ctx);
   }
 }
@@ -225,6 +229,7 @@ static void wake_up_tasks() {
 }
 
 void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
+  spinlock_acquire(&sched_ctx.lock);
   stop_timer();
   wake_up_tasks();
 
@@ -242,6 +247,7 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   if (next_task_idx == sched_ctx.current_task) {
     start_timer();
     current_task->state = TASK_STATE_RUNNING;
+    spinlock_release(&sched_ctx.lock);
     return;  // No need to switch context if task didn't change
   }
 
@@ -253,6 +259,8 @@ void sched_timer_irq_handler(uint32_t intid, uintptr_t sp_after_ctx_save) {
   current_task->ctx.sp = sp_after_ctx_save;
   sched_ctx.current_task = next_task_idx;
 
+  spinlock_release(&sched_ctx.lock);
+
   switch_context_from_irq(next_task, intid);
 }
 
@@ -261,14 +269,17 @@ bool sched_create_task(void (*task_func)(void)) {
     return false;  // Max tasks reached
   }
 
-  uint32_t new_task_idx = sched_ctx.task_count++;
+  uint32_t new_task_idx = sched_ctx.task_count;
   Task* new_task = &sched_ctx.task_list[new_task_idx];
 
+  spinlock_acquire(&sched_ctx.lock);
+  sched_ctx.task_count++;
   new_task->id = (task_id_t)new_task_idx; // for now id == index
   new_task->ctx.sp = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
   new_task->ctx.pc = (uint64_t)(uintptr_t)task_func;
   new_task->state = TASK_STATE_INITIAL;
   new_task->sleep_until = 0;
+  spinlock_release(&sched_ctx.lock);
 
   return true;
 }
@@ -278,8 +289,10 @@ task_id_t sched_get_task_id(void) {
 }
 
 void sched_block_task(void) {
+  spinlock_acquire(&sched_ctx.lock);
   sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_BLOCKED;
-  sched_yield();
+  spinlock_release(&sched_ctx.lock);
+  trigger_timer_irq();
 }
 
 void sched_unblock_task(task_id_t task_id) {
@@ -292,16 +305,22 @@ void sched_unblock_task(task_id_t task_id) {
 }
 
 void sched_sleep(uint64_t sleep_us) {
+  if (sleep_us == 0) {
+    sched_yield();
+    return;
+  }
+
   // Calculate wake-up time
   uint64_t current_time_ticks = GET_TIMER_COUNT();
   uint64_t sleep_ticks = US_TO_CNTP_TVAL(sleep_us);
-  // TODO: handle potential overflow?
-  sched_ctx.task_list[sched_ctx.current_task].sleep_until = current_time_ticks + sleep_ticks;
   
-  sched_block_task();
+  spinlock_acquire(&sched_ctx.lock);
+  sched_ctx.task_list[sched_ctx.current_task].sleep_until = current_time_ticks + sleep_ticks;
+  sched_ctx.task_list[sched_ctx.current_task].state = TASK_STATE_BLOCKED;
+  spinlock_release(&sched_ctx.lock);
+  trigger_timer_irq();
 }
 
 void sched_yield(void) {
   trigger_timer_irq();
-  return;
 }

@@ -2,10 +2,9 @@
 #define PLATFORM_H
 
 #define PLATFORM_NAME "BCM2711"
-#define LOW_PERIPHERAL_MODE
+#define USE_LOW_PERIPHERAL_MODE 1
 
-
-#ifdef LOW_PERIPHERAL_MODE
+#if USE_LOW_PERIPHERAL_MODE
 
 #define UART0_BASE      0xfe201000
 #define SYS_TIMER_BASE  0xfe003000
@@ -13,7 +12,8 @@
 #define GICD_BASE       0xff841000
 #define GICC_BASE       0xff842000
 
-#endif // LOW_PERIPHERAL_MODE
+#endif // USE_LOW_PERIPHERAL_MODE
+
 
 #define VC_IRQ_BASE 96 
 

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#define USE_SMP 0
 
 /* REGISTER GETTER GENERATORS */
 
