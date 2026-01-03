@@ -3,24 +3,23 @@
 #include "sem.h"
 
 
-static int push_task_to_wait_queue(KSemaphore* sem, task_id_t task_id) {
-  if (sem->wait_count >= MAX_TASKS) {
+static int push_task_to_queue(TaskQueue* queue, task_id_t task_id) {
+  if (queue->count >= MAX_TASKS) {
     return -1; // Full
   }
-  sem->wait_queue[sem->queue_rear] = task_id;
-  sem->queue_rear = (sem->queue_rear + 1) % MAX_TASKS;
-  sem->wait_count++;
+  queue->tasks[queue->rear] = task_id;
+  queue->rear = (queue->rear + 1) % MAX_TASKS;
+  queue->count++;
   return 0;
 }
 
-static task_id_t pop_task_from_wait_queue(KSemaphore* sem) {
-  if (sem->wait_count == 0) {
+static task_id_t pop_task_from_queue(TaskQueue* queue) {
+  if (queue->count == 0) {
     return NO_TASK; // Empty
   }
-  task_id_t task_id = sem->wait_queue[sem->queue_front];
-  sem->queue_front = (sem->queue_front + 1) % MAX_TASKS;
-  sem->wait_count--;
-
+  task_id_t task_id = queue->tasks[queue->front];
+  queue->front = (queue->front + 1) % MAX_TASKS;
+  queue->count--;
   return task_id;
 }
 
@@ -30,14 +29,9 @@ int k_sem_init(KSemaphore* sem, uint64_t initial_value, uint64_t max_value) {
     return -1;
   }
 
-  spinlock_acquire(&sem->lock);
+  memset(sem, 0, sizeof(KSemaphore));
   sem->value = initial_value;
   sem->max_value = max_value;
-  memset(sem->wait_queue, 0, sizeof(sem->wait_queue));
-  sem->wait_count = 0;
-  sem->queue_front = 0;
-  sem->queue_rear = 0;
-  spinlock_release(&sem->lock);
 
   return 0;
 }
@@ -48,10 +42,36 @@ int k_sem_wait(KSemaphore* sem) {
   }
 
   spinlock_acquire(&sem->lock);
+  
   if (sem->value == 0) {
-    push_task_to_wait_queue(sem, sched_get_task_id());
+    push_task_to_queue(&sem->wait_queue, sched_get_task_id());
     spinlock_release(&sem->lock);
     sched_block_task();
+    spinlock_acquire(&sem->lock);
+  }
+  
+  sem->value--;
+  
+  // Wake a waiting poster if any
+  task_id_t popped_poster = pop_task_from_queue(&sem->post_queue);
+  spinlock_release(&sem->lock);
+  
+  if (popped_poster != NO_TASK) {
+    sched_unblock_task(popped_poster);
+  }
+
+  return 0;
+}
+
+int k_sem_try_wait(KSemaphore* sem) {
+  if (sem == NULL) {
+    return -1;
+  }
+
+  spinlock_acquire(&sem->lock);
+  if (sem->value == 0) {
+    spinlock_release(&sem->lock);
+    return -1; // Would block
   }
   sem->value--;
   spinlock_release(&sem->lock);
@@ -59,20 +79,45 @@ int k_sem_wait(KSemaphore* sem) {
   return 0;
 }
 
+
 int k_sem_post(KSemaphore* sem) {
   if (sem == NULL) {
     return -1;
   }
 
   spinlock_acquire(&sem->lock);
-  if (sem->value < sem->max_value) {
-    sem->value++;
+  
+  if (sem->value >= sem->max_value) {
+    push_task_to_queue(&sem->post_queue, sched_get_task_id());
+    spinlock_release(&sem->lock);
+    sched_block_task();
+    spinlock_acquire(&sem->lock);
+  }
+  
+  sem->value++;
+  
+  // Wake a waiting waiter if any
+  task_id_t popped_waiter = pop_task_from_queue(&sem->wait_queue);
+  spinlock_release(&sem->lock);
+  
+  if (popped_waiter != NO_TASK) {
+    sched_unblock_task(popped_waiter);
   }
 
-  task_id_t popped_task = pop_task_from_wait_queue(sem);
-  if (popped_task != NO_TASK) {
-    sched_unblock_task(popped_task);
+  return 0;
+}
+
+int k_sem_try_post(KSemaphore* sem) {
+  if (sem == NULL) {
+    return -1;
   }
+
+  spinlock_acquire(&sem->lock);
+  if (sem->value >= sem->max_value) {
+    spinlock_release(&sem->lock);
+    return -1; // Would block
+  }
+  sem->value++;
   spinlock_release(&sem->lock);
 
   return 0;

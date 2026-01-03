@@ -7,7 +7,6 @@
 #include "stdio.h"
 #include "string.h"
 
-
 #include "io.h"
 #include "console.h"
 #include "gic.h"
@@ -73,20 +72,27 @@ void task_sleep_demo(void) {
 KSemaphore test_sem;
 
 void sem_wait_task(void) {
-  k_sem_init(&test_sem, 0, 1);
   while (1) {
-    k_printf("waiting for semaphore\r\n");
+    for (int i = 0; i < 10; i++) {
+      k_sem_wait(&test_sem);
+      k_printf("got semaphore\r\n");
+    }
+    k_printf("waiting one more\r\n");
     k_sem_wait(&test_sem);
-    k_printf("got semaphore\r\n");
+    k_printf("k_sem_wait unblocked\r\n");
   }
 }
 
 void sem_post_task(void) {
+  k_sem_init(&test_sem, 0, 10);
   while (1) {
-    k_printf("sleeping before posting to semaphore\r\n");
-    sched_sleep(2000000);  // Sleep for 2 seconds
+    for (int i = 0; i < 10; i++) {
+      k_sem_post(&test_sem);
+      k_printf("posted to semaphore\r\n");
+    }
+    k_printf("posting one more\r\n");
     k_sem_post(&test_sem);
-    k_printf("posted to semaphore\r\n");
+    k_printf("k_sem_post unblocked\r\n");
   }
 }
 
@@ -117,10 +123,10 @@ int c_entry() {
   sched_create_task(task_1);
   sched_create_task(task_2);
   sched_create_task(task_3);
-  //sched_create_task(task_sleep_demo);
-  //sched_create_task(console_loop_task);
-  sched_create_task(sem_wait_task);
+  sched_create_task(task_sleep_demo);
+  sched_create_task(console_loop_task);
   sched_create_task(sem_post_task);
+  sched_create_task(sem_wait_task);
 
   sched_start();
 
