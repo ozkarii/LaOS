@@ -107,6 +107,7 @@ typedef struct Task {
 } Task;
 
 typedef struct SchedContext {
+  bool initialized;
   Spinlock lock;
   uint32_t task_count;
   uint32_t current_task;
@@ -196,9 +197,13 @@ void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
   sched_ctx.time_slice_cntp_tval = US_TO_CNTP_TVAL(time_slice_us);
   sched_ctx.end_irq_callback = end_irq_callback;
   create_idle_task();
+  sched_ctx.initialized = true;
 }
 
 int sched_start(void) {
+  if (sched_ctx.initialized == false) {
+    return -1;
+  }
   start_timer();
   if (sched_ctx.task_count > 0) {
     sched_ctx.current_task = 0;
