@@ -1,7 +1,8 @@
 ENTRY(_Reset)
 SECTIONS
 {
-	. = 0x40000000;
+	. = 0x40000000;  /* 1 GiB */
+	kernel_base = .;
 	
 	/* Vector table section - must be aligned to 2KB */
 	.vectors . : ALIGN(0x800) { 

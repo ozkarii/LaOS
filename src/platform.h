@@ -6,6 +6,8 @@
 
 #if USE_LOW_PERIPHERAL_MODE
 
+#define MMIO_BASE       0xfc000000
+
 #define UART0_BASE      0xfe201000
 #define SYS_TIMER_BASE  0xfe003000
 #define ARM_TIMER_BASE  0xfe00b400

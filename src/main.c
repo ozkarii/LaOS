@@ -15,6 +15,7 @@
 #include "pl011.h"
 #include "sched.h"
 #include "sem.h"
+#include "mmu.h"
 
 void console_loop_task(void) {
   console_loop("#");
@@ -97,6 +98,8 @@ void sem_post_task(void) {
 }
 
 int c_entry() {
+  mmu_init();
+  
   pl011_enable();
   pl011_set_rx_irq(true);
 
