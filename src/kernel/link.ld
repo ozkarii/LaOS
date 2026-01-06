@@ -25,14 +25,14 @@ SECTIONS
 	}
 
 	. = ALIGN(16);
-	.stack_bottom = .;
-    . = . + 0x10000;  /* 16KB of stack for each of the CPUs in EL3*/
+	.stack_bottom_el3 = .;
+    . = . + 0x10000;  /* 16KB stack for each CPU in EL3 */
     . = ALIGN(16);
-    stack_top = .;
+    stack_top_el3 = .;
 
 	. = ALIGN(16);
 	.stack_bottom_el1 = .;
-	. = . + 0x8000;   /* 32KB stack for EL1 CPU0 */
+	. = . + 0x20000;   /* 32KB stack for each CPU in EL1*/
 	. = ALIGN(16);
 	stack_top_el1 = .;
 }

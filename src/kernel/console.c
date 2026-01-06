@@ -15,7 +15,7 @@
 #define KEY_LEFT 0x44
 
 void startup_logs() {
-  k_printf("Using CPU%u\r\n", GET_MPIDR() & 0xFF);
+  k_printf("Using CPU%u\r\n", GET_CPU_ID());
   k_printf("CurrentEL: EL%u\r\n", GET_CURRENT_EL() >> 2u);
   gic_print_info(k_printf);
   pl011_print_info(k_printf);

@@ -8,11 +8,15 @@
 
 #define MMIO_BASE       0xfc000000
 
-#define UART0_BASE      0xfe201000
-#define SYS_TIMER_BASE  0xfe003000
-#define ARM_TIMER_BASE  0xfe00b400
-#define GICD_BASE       0xff841000
-#define GICC_BASE       0xff842000
+#define UART0_BASE       0xfe201000
+#define SYS_TIMER_BASE   0xfe003000
+#define ARM_TIMER_BASE   0xfe00b400
+#define GICD_BASE        0xff841000
+#define GICC_BASE_LEGACY 0xff842000
+#define GICC_BASE_CPU0   0xff845000
+#define GICC_BASE_CPU1   0xff845200
+#define GICC_BASE_CPU2   0xff845400
+#define GICC_BASE_CPU3   0xff845600
 
 #endif // USE_LOW_PERIPHERAL_MODE
 

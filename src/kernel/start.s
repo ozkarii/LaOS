@@ -20,18 +20,13 @@ _Reset:
 
 _Init_sp:
     // Initialize the stack pointer for each core in EL3
-    ldr x1, =stack_top
+    ldr x1, =stack_top_el3
     mrs x2, mpidr_el1
     and x2, x2, #0xFF      // x2 == CPU number.
     mov x3, #0x4000        // 16KB stack per core
     mul x3, x2, x3         // Create separated stack spaces
     sub x1, x1, x3         // for each processor
     mov sp, x1
-
-_Sleep_cores:
-    mrs x0, mpidr_el1
-    and x0, x0, #0xFF
-    cbnz x0, _Sleep       // Only core 0 continues
 
 _Setup_EL2:
     // Initialize SCTLR_EL2 and HCR_EL2 to save values before entering EL2.
@@ -66,11 +61,19 @@ _Setup_EL1:
 
     // Setup SP_EL1
     ldr x0, =stack_top_el1
+    mrs x2, mpidr_el1
+    and x2, x2, #0xFF      // x2 == CPU number.
+    mov x3, #0x8000        // 32KB stack per core
+    mul x3, x2, x3         // Create separated stack spaces
+    sub x0, x0, x3         // for each processor
     msr sp_el1, x0
 
     eret                    // Transition to EL1
 
 _EL1_entry:
+    mrs x0, mpidr_el1
+    and x0, x0, #0xFF
+    cbnz x0, _C_entry_secondary_core // If not CPU0, go to secondary core entry
 _Zero_bss:
     ldr x1, =bss_start
     ldr x2, =bss_end
@@ -86,6 +89,6 @@ _C_entry:
     bl c_entry
     b .
 
-_Sleep:
-    wfe
-    b _Sleep
+_C_entry_secondary_core:
+    bl c_entry_secondary_core
+    b .

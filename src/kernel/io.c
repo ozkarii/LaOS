@@ -4,6 +4,9 @@
 #include "stdio.h"
 #include "io.h"
 #include "io-buffer.h"
+#include "spinlock.h"
+
+static Spinlock k_puts_lock = {0};
 
 void k_putchar(const char c) {
   pl011_putc(c);
@@ -11,10 +14,12 @@ void k_putchar(const char c) {
 
 void k_puts(const char* s) {
   char* tmp = (char*)s;
+  spinlock_acquire(&k_puts_lock);
   while(*tmp) {
     k_putchar(*tmp);
     tmp++;
   }
+  spinlock_release(&k_puts_lock);
 }
 
 char k_getchar(void) {

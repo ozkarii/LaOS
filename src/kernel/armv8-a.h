@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 
-#define USE_SMP 0
+#define USE_SMP 1
+#define NUM_CPUS 4
 
 /* REGISTER GETTER GENERATORS */
 
@@ -92,6 +93,10 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
     val; \
 })
 
+/* CPU */
+
+#define GET_CPU_ID() (GET_MPIDR() & 0xFF)
+
 /* INTERRUPTS */
 
 #define EL1_PHY_TIM_IRQ 30u
@@ -113,6 +118,9 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 
 #define DISABLE_ALL_INTERRUPTS() \
     asm volatile ("msr daifset, #3" ::: "memory")
+
+#define WAIT_FOR_INTERRUPT() \
+    asm volatile ("wfi")
 
 
 /* REGISTER DUMP */

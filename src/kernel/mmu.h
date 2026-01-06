@@ -2,6 +2,7 @@
 #define MMU_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "armv8-a.h"
 #include "platform.h"
 
@@ -97,7 +98,7 @@ VB   - validity descriptor bit
 #define MAIR_NORMAL_NC      0x44
 
 
-void mmu_init(void);
+void mmu_init(bool primary_core);
 
 
 #endif // MMU_H

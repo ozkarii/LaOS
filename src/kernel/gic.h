@@ -7,6 +7,7 @@
 
 #define GIC_VERSION 2
 #define GIC_MODEL "GIC-400"
+#define GIC_MAX_CPUS 8
 
 #define D_CTLR              0x0
 #define D_CTLR_ENABLE_GRP0  1u
@@ -22,6 +23,10 @@
 #define D_ISACTIVER  0x300
 #define D_IPRIORITYR 0x400
 #define D_ITARGETSR  0x800
+
+#define D_SGIR                       0xF00
+#define D_SGIR_INTID                 0xF
+#define D_SGIR_CPU_TARGET_LIST_SHIFT 16
 
 #define C_CTLR              0x0
 #define C_CTLR_ENABLE_GRP0  1u
@@ -48,13 +53,15 @@ int gicd_set_irq_priority(uint32_t irq, uint8_t priority);
 
 // Currently one cpu at a time
 int gicd_set_irq_cpu(uint32_t irq, uint32_t cpu);
+int gicd_send_sgi(uint32_t sgi, uint32_t cpu);
+
 int gicd_is_irq_pending(uint32_t irq);
 
-void gicc_enable(void);
-void gicc_disable(void);
-void gicc_set_priority_mask(uint8_t mask);
-uint32_t gicc_get_intid_and_ack(void);
-void gicc_end_irq(uint32_t intid);
+void gicc_enable(uint32_t cpu_id);
+void gicc_disable(uint32_t cpu_id);
+void gicc_set_priority_mask(uint8_t mask, uint32_t cpu_id);
+uint32_t gicc_get_intid_and_ack(uint32_t cpu_id);
+void gicc_end_irq(uint32_t int_id, uint32_t cpu_id);
 
 void gic_print_info(log_func_t log);
 
