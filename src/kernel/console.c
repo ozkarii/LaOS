@@ -5,7 +5,7 @@
 #include "gic.h"
 #include "pl011.h"
 
-#define WELCOME "Welcome to Laudes OS"
+#define WELCOME "Welcome to LaOS"
 #define LINE_MAX 256
 
 #define GNOME_BACKSPACE 0x7f

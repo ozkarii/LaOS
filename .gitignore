@@ -1,5 +1,5 @@
-toolchain/
-.vscode/
+toolchain/**
+.vscode/**
 *.o
 *.elf
 *.a

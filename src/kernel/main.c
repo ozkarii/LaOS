@@ -1,6 +1,6 @@
 /**
  * @file main.c
- * @brief Entry point to the Laudes operating system.
+ * @brief C entry point to OS kernel
  */
 
 #include <stdint.h>
