@@ -27,7 +27,7 @@ void task_sleep_demo(void) {
   int counter = 0;
   while (1) {
     k_printf("task_sleep_demo: sleeping for 5 seconds, counter: %d\r\n", counter);
-    sched_sleep(5000000);
+    sched_sleep(1000000);
     k_printf("task_sleep_demo: woke up, counter: %d\r\n", counter);
     counter++;
   }
@@ -93,7 +93,7 @@ int c_entry() {
 
   sched_init(100000, gicc_end_irq);
 
-  //sched_create_task(ramfs_test_task);
+  sched_create_task(ramfs_test_task);
 
   k_printf("Primary CPU0 starting up...\r\n");
   primary_cpu_started = true;
@@ -122,6 +122,7 @@ int c_entry_secondary_core(void) {
     sched_create_task(console_loop_task);
     break;
   case 2:
+    //sched_create_task(task_sleep_demo);
     break;
   case 3:
     break;

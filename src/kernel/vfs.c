@@ -125,6 +125,10 @@ int vfs_mount(const char *path, VFSInterface *fs, void *fs_data) {
 
 
 VFSFileDescriptor* vfs_open(const char *path, unsigned mode) {
+  if (!is_valid_path(path)) {
+    return NULL;
+  }
+
   // Find free slot
   int free_fd_slot = -1;
   for (unsigned i = 0; i < MAX_OPEN_FILES; i++) {

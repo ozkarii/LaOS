@@ -6,6 +6,7 @@
 #include "gic.h"
 #include "pl011.h"
 #include "vfs.h"
+#include "memory.h"
 
 #define WELCOME "Welcome to LaOS"
 #define LINE_MAX 256
@@ -23,24 +24,87 @@ void startup_logs() {
   pl011_print_info(k_printf);
 }
 
-int touch_count = 0;
+typedef struct StringTokens {
+  char** tokens;
+  size_t count;
+} StringTokens;
+
+static StringTokens tokenize_string(const char* str, const char delim) {
+  StringTokens result = {NULL, 0};
+  
+  // Count tokens first
+  size_t count = 0;
+  const char* p = str;
+  while (*p) {
+    while (*p == delim) p++;
+    if (*p) {
+      count++;
+      while (*p && *p != delim) p++;
+    }
+  }
+
+  result.count = count;
+  
+  // Allocate array with NULL terminator
+  result.tokens = k_malloc((count + 1) * sizeof(char*));
+  result.tokens[count] = NULL;
+
+  // Fill tokens
+  size_t idx = 0;
+  const char* start = str;
+  while (*str) {
+    while (*str == delim) str++;
+    if (*str) {
+      start = str;
+      while (*str && *str != delim) str++;
+      size_t len = str - start;
+      result.tokens[idx] = k_malloc(len + 1);
+      memcpy(result.tokens[idx], start, len);
+      result.tokens[idx][len] = '\0';
+      idx++;
+    }
+  }
+
+  return result;
+}
+
+void command_ls(char** argv, size_t argc) {
+  static char buf[256];
+  if (argc < 2) {
+    k_printf("Usage: ls <path>\n");
+    return;
+  }
+  VFSFileDescriptor* fd = vfs_open(argv[1], MODE_READ);
+  if (fd == NULL) {
+    k_printf("vfs_open: failed to open path %s\n", argv[1]);
+    return;
+  }
+  vfs_readdir(fd, buf, sizeof(buf));
+  vfs_close(fd);
+  k_printf("%s\n", buf);
+}
+
+void command_touch(char** argv, size_t argc) {
+  if (argc < 2) {
+    k_printf("Usage: touch <filename>\n");
+    return;
+  }
+  VFSFileDescriptor* fd = vfs_open(argv[1], MODE_CREATE);
+  if (fd == NULL) {
+    k_printf("vfs_open: failed to create file %s\n", argv[1]);
+    return;
+  }
+  vfs_close(fd);
+}
+
 
 static void exec_command(const char* command) {
-  if (!strcmp(command, "info uart")) {
-    pl011_print_info(k_printf);
+  StringTokens s = tokenize_string(command, ' ');
+  if (!strcmp(s.tokens[0], "ls")) {
+    command_ls(s.tokens, s.count);
   }
-  else if (!strcmp(command, "ls")) {
-    char buf[256];
-    VFSFileDescriptor* fd = vfs_open("/", MODE_READ);
-    vfs_readdir(fd, buf, sizeof(buf));
-    vfs_close(fd);
-    k_printf("%s\n", buf);
-  }
-  else if (!strcmp(command, "touch")) {
-    char filename[64];
-    snprintf(filename, sizeof(filename), "/file%d", touch_count++);
-    VFSFileDescriptor* fd = vfs_open(filename, MODE_CREATE);
-    vfs_close(fd);
+  else if (!strcmp(s.tokens[0], "touch")) {
+    command_touch(s.tokens, s.count);
   }
 }
 
