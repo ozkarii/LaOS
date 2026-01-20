@@ -13,6 +13,14 @@
  */
 void* memcpy(void* dest, const void* src, size_t n);
 
+/**
+ * @brief Fills the first n bytes of the memory area pointed to by ptr with the constant byte value.
+ * 
+ * @param ptr Pointer to the memory area to be filled.
+ * @param value The byte value to set (converted to unsigned char).
+ * @param num Number of bytes to be set to the value.
+ * @return A pointer to ptr.
+ */
 void* memset(void* ptr, int value, size_t num);
 
 /**
@@ -38,7 +46,7 @@ char* strcpy(char* dest, const char* src);
  *         - = 0 if str1 is equal to str2
  *         - > 0 if str1 is greater than str2
  */
-int strcmp ( const char * str1, const char * str2 );
+int strcmp (const char* str1, const char* str2 );
 
 /**
  * @brief Calculates the length of a given string.
@@ -48,6 +56,6 @@ int strcmp ( const char * str1, const char * str2 );
  * @param str Pointer to the null-terminated string, whose lenght we need to find.
  * @return The integral length of the string passed
  */
-size_t strlen(const char * str);
+size_t strlen(const char* str);
 
 #endif // STRING_H

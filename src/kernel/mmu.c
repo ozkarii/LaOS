@@ -17,10 +17,10 @@ void mmu_init(bool primary_core) {
     l1_page_table[1] = UXN | kernel_block_base | AF | SH_INNER | INDX_NORMAL_WB | AP_RW_EL1 | DESC_BLOCK;
     
     // Unused
-    const uint64_t mmio_block_base = MMIO_BASE & ~(BLOCK_SIZE - 1);
     l1_page_table[2] = DESC_INVALID;
 
     // MMIO
+    const uint64_t mmio_block_base = MMIO_BASE & ~(BLOCK_SIZE - 1);
     l1_page_table[3] = PXN | UXN | mmio_block_base | AF | INDX_DEVICE | AP_RW_EL1 | DESC_BLOCK;
   }
 
