@@ -1,6 +1,6 @@
 /**
  * @file main.c
- * @brief C entry point to OS kernel
+ * @brief Entry point to the OS kernel C code
  */
 
 #include <stdint.h>
@@ -16,6 +16,8 @@
 #include "sched.h"
 #include "sem.h"
 #include "mmu.h"
+#include "vfs.h"
+#include "ramfs.h"
 
 void console_loop_task(void) {
   console_loop("#");
@@ -31,25 +33,34 @@ void task_sleep_demo(void) {
   }
 }
 
-KSemaphore test_sem;
-
-void sem_wait_task(void) {
-  while (1) {
-    for (int i = 0; i < 10; i++) {
-      k_sem_wait(&test_sem);
-    }
-    k_sem_wait(&test_sem);
+void ramfs_test_task(void) {
+  VFSFileDescriptor* fd = vfs_open("/testfile.txt", MODE_CREATE | MODE_WRITE);
+  if (fd == NULL) {
+    k_printf("ramfs_test_task: failed to open file for writing\r\n");
+    return;
   }
-}
 
-void sem_post_task(void) {
-  k_sem_init(&test_sem, 0, 10);
-  while (1) {
-    for (int i = 0; i < 10; i++) {
-      k_sem_post(&test_sem);
-    }
-    k_sem_post(&test_sem);
+  const char* message = "Hello, RamFS!\n";
+  vfs_write(fd, message, strlen(message));
+  vfs_close(fd);
+
+  fd = vfs_open("/testfile.txt", MODE_READ);
+  if (fd == NULL) {
+    k_printf("ramfs_test_task: failed to open file for reading\r\n");
+    return;
   }
+
+  char buffer[64];
+  int bytes_read = vfs_read(fd, buffer, sizeof(buffer) - 1);
+  if (bytes_read > 0) {
+    buffer[bytes_read] = '\0';  // Null-terminate the string
+    k_printf("ramfs_test_task: read from file: %s", buffer);
+  } else {
+    k_printf("ramfs_test_task: failed to read from file\r\n");
+  }
+
+  vfs_close(fd);
+  sched_sleep(1000000000);
 }
 
 static _Atomic bool primary_cpu_started = false;
@@ -75,11 +86,14 @@ int c_entry() {
 
   ENABLE_ALL_INTERRUPTS();
 
-  startup_logs();
+  void* dummy_ramfs = ramfs_init();
+  VFSInterface* ramfs_if = ramfs_get_vfs_interface();
+  vfs_mount("/", ramfs_if, dummy_ramfs);
+  k_printf("Mounted RamFS at /\r\n");
 
   sched_init(100000, gicc_end_irq);
 
-  sched_create_task(task_sleep_demo);
+  //sched_create_task(ramfs_test_task);
 
   k_printf("Primary CPU0 starting up...\r\n");
   primary_cpu_started = true;
@@ -105,13 +119,11 @@ int c_entry_secondary_core(void) {
 
   switch (cpu_id) {
   case 1:
-    sched_create_task(sem_post_task);
+    sched_create_task(console_loop_task);
     break;
   case 2:
-    sched_create_task(sem_wait_task);
     break;
   case 3:
-    sched_create_task(console_loop_task);
     break;
   default:
     k_printf("Dubious CPU%u entering idle loop...\r\n", cpu_id);

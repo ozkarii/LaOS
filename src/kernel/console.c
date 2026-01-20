@@ -1,9 +1,11 @@
 #include "string.h"
+#include "stdio.h"
 #include "console.h"
 #include "io.h"
 #include "armv8-a.h"
 #include "gic.h"
 #include "pl011.h"
+#include "vfs.h"
 
 #define WELCOME "Welcome to LaOS"
 #define LINE_MAX 256
@@ -21,9 +23,24 @@ void startup_logs() {
   pl011_print_info(k_printf);
 }
 
+int touch_count = 0;
+
 static void exec_command(const char* command) {
   if (!strcmp(command, "info uart")) {
     pl011_print_info(k_printf);
+  }
+  else if (!strcmp(command, "ls")) {
+    char buf[256];
+    VFSFileDescriptor* fd = vfs_open("/", MODE_READ);
+    vfs_readdir(fd, buf, sizeof(buf));
+    vfs_close(fd);
+    k_printf("%s\n", buf);
+  }
+  else if (!strcmp(command, "touch")) {
+    char filename[64];
+    snprintf(filename, sizeof(filename), "/file%d", touch_count++);
+    VFSFileDescriptor* fd = vfs_open(filename, MODE_CREATE);
+    vfs_close(fd);
   }
 }
 
