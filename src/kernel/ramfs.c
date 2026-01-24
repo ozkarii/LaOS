@@ -13,7 +13,7 @@ typedef struct RamFSFile {
   uint8_t data[RAMFS_MAX_FILE_SIZE];
   size_t size;
   bool is_directory;
-  bool in_use;
+  bool is_allocated;
   RamFSFile* parent;
   RamFSFile* children[RAMFS_MAX_CHILDREN];
 } RamFSFile;
@@ -36,6 +36,7 @@ static int ramfs_close(void *fs_data, void *file);
 static int ramfs_seek(void *fs_data, void *file, size_t offset);
 static int ramfs_mkdir(void* fs_data, const char* path);
 static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size);
+static int ramfs_remove(void* fs_data, const char* path);
 
 VFSInterface ramfs_if = {
   .open = ramfs_open,
@@ -44,7 +45,8 @@ VFSInterface ramfs_if = {
   .close = ramfs_close,
   .seek = ramfs_seek,
   .mkdir = ramfs_mkdir,
-  .readdir = ramfs_readdir
+  .readdir = ramfs_readdir,
+  .remove = ramfs_remove
 };
 
 void* ramfs_init(void* dest, size_t max_size) {
@@ -57,7 +59,7 @@ void* ramfs_init(void* dest, size_t max_size) {
   RamFS* fs = (RamFS*)dest;
 
   // Create root directory
-  fs->files[ROOT_IDX].in_use = true;
+  fs->files[ROOT_IDX].is_allocated = true;
   fs->files[ROOT_IDX].is_directory = true;
   fs->files[ROOT_IDX].path[0] = PATH_SEPARATOR;
   
@@ -68,9 +70,13 @@ VFSInterface* ramfs_get_vfs_interface(void) {
   return &ramfs_if;
 }
 
+size_t ramfs_get_size(void) {
+  return sizeof(RamFS);
+}
+
 static RamFSFile* find_file(RamFS *fs, const char *path) {
   for (int i = 0; i < RAMFS_MAX_FILES; i++) {
-    if (fs->files[i].in_use && strcmp(fs->files[i].path, path) == 0) {
+    if (fs->files[i].is_allocated && strcmp(fs->files[i].path, path) == 0) {
       return &fs->files[i];
     }
   }
@@ -119,9 +125,9 @@ static RamFSFile* create_file(RamFS *fs, const char *path, bool is_dir) {
 
   // Allocate file
   for (int i = 0; i < RAMFS_MAX_FILES; i++) {
-    if (!fs->files[i].in_use) {
+    if (!fs->files[i].is_allocated) {
       RamFSFile* file = &fs->files[i];
-      file->in_use = true;
+      file->is_allocated = true;
       file->is_directory = is_dir;
       file->size = 0;
       strcpy(file->path, path);
@@ -135,28 +141,60 @@ static RamFSFile* create_file(RamFS *fs, const char *path, bool is_dir) {
   return NULL;
 }
 
-static void* ramfs_open(void *fs_data, const char *path, unsigned mode) {
-  RamFS *fs = (RamFS*)fs_data;
-  RamFSFile *file = find_file(fs, path);
-  
-  if (!file && (mode & MODE_CREATE)) {
-    file = create_file(fs, path, false);
-  }
-  
-  if (!file) {
-    return NULL;
+static int destroy_file(RamFSFile* file) {
+  if (file->parent == NULL) {
+    return -1; // Can't, if root
   }
 
-  // Allocate handle
-  for (int i = 0; i < MAX_OPEN_FILES; i++) {
-    if (fs->handles[i].file == NULL) {
-      fs->handles[i].file = file;
-      fs->handles[i].offset = 0;
-      return &fs->handles[i];
+  if (file->is_directory) {
+    for (int i = 0; i < RAMFS_MAX_CHILDREN; i++) {
+      if (file->children[i] != NULL) {
+        return -1; // Can't destroy dir containing files
+      }
     }
   }
 
+  for (int i = 0; i < RAMFS_MAX_CHILDREN; i++) {
+    if (file->parent->children[i] == file) {
+      file->parent->children[i] = NULL;
+    }
+  }
+
+  memset(file, 0, sizeof(RamFSFile));
+
+  return 0;
+}
+
+static RamFSHandle* allocate_handle(RamFS* fs, RamFSFile* file) {
+  RamFSHandle* handle = NULL;
+  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    if (fs->handles[i].file == NULL) {
+      handle = &fs->handles[i];
+      handle->file = file;
+      handle->offset = 0;
+      return handle;
+    }
+  }
   return NULL;
+}
+
+static void* ramfs_open(void *fs_data, const char *path, unsigned mode) {
+  RamFS *fs = (RamFS*)fs_data;
+  RamFSFile *file = find_file(fs, path);
+
+  if ((file == NULL) && (mode & MODE_CREATE)) {
+    file = create_file(fs, path, false);
+  }
+  if (file == NULL) {
+    return NULL;
+  }
+
+  RamFSHandle *handle = allocate_handle(fs, file);
+  if (handle == NULL) {
+    destroy_file(file);
+  }
+
+  return handle;
 }
 
 static int ramfs_read(void *fs_data, void *handle, void *buffer, size_t size) {
@@ -192,7 +230,7 @@ static int ramfs_write(void *fs_data, void *handle, const void *buffer, size_t s
 static int ramfs_close(void *fs_data, void *handle) {
   (void)fs_data;
   RamFSHandle *h = (RamFSHandle*)handle;
-  h->file = NULL;  // Mark handle as free
+  memset(h, 0, sizeof(RamFSHandle));
   return 0;
 }
 
@@ -235,7 +273,7 @@ static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size)
 
   for (unsigned i = 0; i < RAMFS_MAX_CHILDREN; i++) {
     RamFSFile* child = h->file->children[i];
-    if (child && child->in_use) {
+    if (child && child->is_allocated) {
       // Extract just the filename from the full path
       const char* name = child->path;
       for (const char *p = child->path; *p; p++) {
@@ -261,4 +299,21 @@ static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size)
   }
 
   return 0;
+}
+
+static int ramfs_remove(void* fs_data, const char* path) {
+  RamFS* fs = (RamFS*)fs_data;
+
+  RamFSFile* file = find_file(fs_data, path);
+  if (file == NULL) {
+    return -1; // File doesn't exist
+  }
+
+  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    if (fs->handles[i].file == file) {
+      return -1; // Can't, if someone has opened this file
+    }
+  }
+
+  return destroy_file(file);
 }

@@ -222,3 +222,15 @@ int vfs_mkdir(const char* path) {
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size) {
   return fd->mount->fs->readdir(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
+
+int vfs_remove(const char* path) {
+  VFSMountPoint* mount = find_mount_point(path);
+  if (mount == NULL) {
+    return -1;
+  }
+
+  const char* path_without_mount_point 
+    = get_path_without_mount_point(path, mount->path);
+  
+  return mount->fs->remove(mount->fs_data, path_without_mount_point);
+}

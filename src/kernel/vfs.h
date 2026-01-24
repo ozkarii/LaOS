@@ -24,6 +24,7 @@ typedef struct VFSInterface {
   int (*seek)(void* fs_data, void* file, size_t offset);
   int (*mkdir)(void* fs_data, const char* path);
   int (*readdir)(void* fs_data, void* dir, char* buffer, size_t size);
+  int (*remove)(void* fs_data, const char* path);
 } VFSInterface;
 
 typedef struct VFSMountPoint {
@@ -49,5 +50,6 @@ int vfs_close(VFSFileDescriptor* fd);
 int vfs_seek(VFSFileDescriptor* fd, size_t offset);
 int vfs_mkdir(const char* path);
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size);
+int vfs_remove(const char* path);
 
 #endif // VFS_H

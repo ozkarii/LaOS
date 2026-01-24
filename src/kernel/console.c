@@ -108,6 +108,17 @@ void command_mkdir(char** argv, size_t argc) {
   }
 }
 
+void command_rm(char** argv, size_t argc) {
+  if (argc < 2) {
+    k_printf("Usage: rm [ <filename> | <emptydirname> ]\n");
+    return;
+  }
+  int ret = vfs_remove(argv[1]);
+  if (ret != 0) {
+    k_printf("vfs_remove: failed to remove %s\n", argv[1]);
+  }
+}
+
 
 static void exec_command(const char* command) {
   StringTokens s = tokenize_string(command, ' ');
@@ -120,8 +131,11 @@ static void exec_command(const char* command) {
   else if (!strcmp(s.tokens[0], "mkdir")) {
     command_mkdir(s.tokens, s.count);
   }
+  else if (!strcmp(s.tokens[0], "rm")){
+    command_rm(s.tokens, s.count);
+  }
   else {
-    // Nothing
+    
   }
 }
 

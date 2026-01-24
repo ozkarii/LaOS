@@ -92,9 +92,16 @@ int c_entry() {
 
   ENABLE_ALL_INTERRUPTS();
 
+  const size_t ramfs_size = ramfs_get_size();
+  k_printf("RamFS size: 0x%lx\n", ramfs_size);
+
+  if (ramfs_size > sizeof(ramfs_buffer)) {
+    k_printf("Size of RamFS is too big for ramfs_buffer!\n");
+  }
+
   void* ramfs = ramfs_init((void*)ramfs_buffer, sizeof(ramfs_buffer));
   if (ramfs == NULL) {
-    k_printf("Failed to initialize ramfs\n");
+    k_printf("Failed to initialize RamFS\n");
     while(1);
   }
 
