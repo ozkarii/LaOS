@@ -56,6 +56,22 @@ static char* strip_prefix(const char* src, const char* prefix) {
   return src_tmp;
 }
 
+static const char* 
+get_path_without_mount_point(const char* path, const char* mount_point) {
+  static const char root_str[2] = {PATH_SEPARATOR, '\0'};
+
+  const char* path_without_mount_point;
+  if (!strcmp(mount_point, root_str)) {
+    // Special case if mount is root
+    path_without_mount_point = path;
+  }
+  else {
+    path_without_mount_point = strip_prefix(path, mount_point);
+  }
+
+  return path_without_mount_point;
+}
+
 static bool is_mountpoint(const char* path) {
   for (unsigned i = 0; i < MAX_MOUNTS; i++) {
     if (strcmp(mounts[i].path, path)) {
@@ -84,6 +100,11 @@ static bool is_valid_path(const char* path) {
     char c = path[i];
     // Has to be proper character: a-z A-Z 0-9 / . _ -
     if (c < 45 || (c > 57 && c < 65) || (c > 90 && c < 97) || c > 122) {
+      return false;
+    }
+
+    if (c == PATH_SEPARATOR && path[i + 1] == PATH_SEPARATOR) {
+      // No double slashes
       return false;
     }
   
@@ -146,22 +167,21 @@ VFSFileDescriptor* vfs_open(const char *path, unsigned mode) {
     return NULL;
   }
 
-  const char* path_without_mount_point;
-  if (!strcmp(mount_point->path, "/")) {
-    // Special case if mount is root
-    path_without_mount_point = path;
-  }
-  else {
-    path_without_mount_point = strip_prefix(path, mount_point->path);
-  }
-  void* opaque = mount_point->fs->open(mount_point->fs_data,
+  const char* path_without_mount_point 
+    = get_path_without_mount_point(path, mount_point->path);
+
+  void* file_handle = mount_point->fs->open(mount_point->fs_data,
                                        path_without_mount_point,
                                        mode);
+  
+  if (file_handle == NULL) {
+    return NULL;
+  }
 
   VFSFileDescriptor* vfs_fd = &open_files[free_fd_slot];
   vfs_fd->in_use = true;
   vfs_fd->mount = mount_point;
-  vfs_fd->opaque_file_handle = opaque;
+  vfs_fd->opaque_file_handle = file_handle;
   vfs_fd->mode = mode;
 
   return vfs_fd;
@@ -185,6 +205,18 @@ int vfs_close(VFSFileDescriptor* fd) {
 
 int vfs_seek(VFSFileDescriptor* fd, size_t offset) {
   return fd->mount->fs->seek(fd->mount->fs_data, fd->opaque_file_handle, offset);
+}
+
+int vfs_mkdir(const char* path) {
+  VFSMountPoint* mount = find_mount_point(path);
+  if (mount == NULL) {
+    return -1;
+  }
+
+  const char* path_without_mount_point 
+    = get_path_without_mount_point(path, mount->path);
+
+  return mount->fs->mkdir(mount->fs_data, path_without_mount_point);
 }
 
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size) {

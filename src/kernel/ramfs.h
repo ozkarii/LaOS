@@ -7,6 +7,6 @@
 
 
 VFSInterface* ramfs_get_vfs_interface(void);
-void* ramfs_init(void);
+void* ramfs_init(void* dest, size_t max_size);
 
 #endif // RAMFS_H

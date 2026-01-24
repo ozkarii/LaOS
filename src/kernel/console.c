@@ -97,6 +97,17 @@ void command_touch(char** argv, size_t argc) {
   vfs_close(fd);
 }
 
+void command_mkdir(char** argv, size_t argc) {
+  if (argc < 2) {
+    k_printf("Usage: mkdir <dirname>\n");
+    return;
+  }
+  int ret = vfs_mkdir(argv[1]);
+  if (ret != 0) {
+    k_printf("vfs_mkdir: failed to create directory %s\n", argv[1]);
+  }
+}
+
 
 static void exec_command(const char* command) {
   StringTokens s = tokenize_string(command, ' ');
@@ -105,6 +116,12 @@ static void exec_command(const char* command) {
   }
   else if (!strcmp(s.tokens[0], "touch")) {
     command_touch(s.tokens, s.count);
+  }
+  else if (!strcmp(s.tokens[0], "mkdir")) {
+    command_mkdir(s.tokens, s.count);
+  }
+  else {
+    // Nothing
   }
 }
 

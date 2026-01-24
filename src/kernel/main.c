@@ -60,10 +60,16 @@ void ramfs_test_task(void) {
   }
 
   vfs_close(fd);
-  sched_sleep(1000000000);
+
+  while (1) {
+    sched_sleep(1000000000);
+  }
 }
 
 static _Atomic bool primary_cpu_started = false;
+
+// Allocate plenty (64 MB) for ramfs
+uint8_t ramfs_buffer[0x4000000];
 
 int c_entry() {
   mmu_init(true);
@@ -86,9 +92,14 @@ int c_entry() {
 
   ENABLE_ALL_INTERRUPTS();
 
-  void* dummy_ramfs = ramfs_init();
+  void* ramfs = ramfs_init((void*)ramfs_buffer, sizeof(ramfs_buffer));
+  if (ramfs == NULL) {
+    k_printf("Failed to initialize ramfs\n");
+    while(1);
+  }
+
   VFSInterface* ramfs_if = ramfs_get_vfs_interface();
-  vfs_mount("/", ramfs_if, dummy_ramfs);
+  vfs_mount("/", ramfs_if, ramfs);
   k_printf("Mounted RamFS at /\r\n");
 
   sched_init(100000, gicc_end_irq);
@@ -122,7 +133,6 @@ int c_entry_secondary_core(void) {
     sched_create_task(console_loop_task);
     break;
   case 2:
-    //sched_create_task(task_sleep_demo);
     break;
   case 3:
     break;
