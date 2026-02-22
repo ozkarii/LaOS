@@ -17,12 +17,9 @@
 #define KEY_RIGHT 0x43
 #define KEY_LEFT 0x44
 
-void startup_logs() {
-  k_printf("Using CPU%u\r\n", GET_CPU_ID());
-  k_printf("CurrentEL: EL%u\r\n", GET_CURRENT_EL() >> 2u);
-  gic_print_info(k_printf);
-  pl011_print_info(k_printf);
-}
+
+static char cwd[NAME_MAX] = "/";
+
 
 typedef struct StringTokens {
   char** tokens;
@@ -68,20 +65,55 @@ static StringTokens tokenize_string(const char* str, const char delim) {
   return result;
 }
 
+static void free_string_tokens(StringTokens* s) {
+  for (size_t i = 0; i < s->count; i++) {
+    k_free(s->tokens[i]);
+  }
+  k_free(s->tokens);
+  s->tokens = NULL;
+  s->count = 0;
+}
+
+// Make sure `out` is at least NAME_MAX in size
+static void resolve_relative_path(const char* cwd, const char* path, char* out) {
+  if (path[0] != '/') {
+    if (!strcmp(cwd, "/")) {
+      snprintf(out, NAME_MAX, "/%s", path);
+    }
+    else {
+      snprintf(out, NAME_MAX, "%s/%s", cwd, path);
+    }
+  }
+  else {
+    strcpy(out, path);
+  }
+}
+
 void command_ls(char** argv, size_t argc) {
-  static char buf[256];
-  if (argc < 2) {
-    k_printf("Usage: ls <path>\n");
+  static char readdir_buf[256];
+  static char temp[NAME_MAX] = {0};
+
+  if (argc == 2) {
+    resolve_relative_path(cwd, argv[1], temp);
+  } else if (argc == 1) {
+    strcpy(temp, cwd);
+  } else {
+    k_printf("Usage: ls [ <dirname> ]\n");
     return;
   }
-  VFSFileDescriptor* fd = vfs_open(argv[1], MODE_READ);
+
+  VFSFileDescriptor* fd = vfs_open(temp, MODE_READ);
   if (fd == NULL) {
-    k_printf("vfs_open: failed to open path %s\n", argv[1]);
+    k_printf("vfs_open: failed to open path %s\n", temp);
     return;
   }
-  vfs_readdir(fd, buf, sizeof(buf));
+  if (vfs_readdir(fd, readdir_buf, sizeof(readdir_buf)) != 0) {
+    k_printf("vfs_readdir: failed to read directory %s\n", temp);
+    vfs_close(fd);
+    return;
+  }
   vfs_close(fd);
-  k_printf("%s\n", buf);
+  k_printf("%s\n", readdir_buf);
 }
 
 void command_touch(char** argv, size_t argc) {
@@ -89,9 +121,13 @@ void command_touch(char** argv, size_t argc) {
     k_printf("Usage: touch <filename>\n");
     return;
   }
-  VFSFileDescriptor* fd = vfs_open(argv[1], MODE_CREATE);
+
+  static char temp[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], temp);
+
+  VFSFileDescriptor* fd = vfs_open(temp, MODE_CREATE);
   if (fd == NULL) {
-    k_printf("vfs_open: failed to create file %s\n", argv[1]);
+    k_printf("vfs_open: failed to create file %s\n", temp);
     return;
   }
   vfs_close(fd);
@@ -102,9 +138,13 @@ void command_mkdir(char** argv, size_t argc) {
     k_printf("Usage: mkdir <dirname>\n");
     return;
   }
-  int ret = vfs_mkdir(argv[1]);
+
+  static char temp[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], temp);
+
+  int ret = vfs_mkdir(temp);
   if (ret != 0) {
-    k_printf("vfs_mkdir: failed to create directory %s\n", argv[1]);
+    k_printf("vfs_mkdir: failed to create directory %s\n", temp);
   }
 }
 
@@ -113,12 +153,35 @@ void command_rm(char** argv, size_t argc) {
     k_printf("Usage: rm [ <filename> | <emptydirname> ]\n");
     return;
   }
-  int ret = vfs_remove(argv[1]);
+
+  static char temp[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], temp);
+
+  int ret = vfs_remove(temp);
   if (ret != 0) {
-    k_printf("vfs_remove: failed to remove %s\n", argv[1]);
+    k_printf("vfs_remove: failed to remove %s\n", temp);
   }
 }
 
+void command_cd(char** argv, size_t argc) {
+  if (argc < 2) {
+    k_printf("Usage: cd <dirname>\n");
+    return;
+  }
+  
+  static char temp[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], temp);
+
+  VFSStat stat = {0};
+  int ret = vfs_stat(temp, &stat);
+  if (ret != 0) {
+    k_printf("vfs_stat: failed to stat %s\n", temp);
+    return;
+  }
+  if (stat.is_directory) {
+    strcpy(cwd, temp);
+  }
+}
 
 static void exec_command(const char* command) {
   StringTokens s = tokenize_string(command, ' ');
@@ -134,9 +197,11 @@ static void exec_command(const char* command) {
   else if (!strcmp(s.tokens[0], "rm")){
     command_rm(s.tokens, s.count);
   }
-  else {
-    
+  else if (!strcmp(s.tokens[0], "cd")) {
+    command_cd(s.tokens, s.count);
   }
+
+  free_string_tokens(&s);
 }
 
 // Escape sequence handler, can modify line ptr position when arrow keys pressed
@@ -177,8 +242,8 @@ void console_loop(const char* prompt) {
   
   while (1) {
     memset(line, 0, LINE_MAX);
-    k_puts(prompt);
-    k_putchar(' ');
+
+    k_printf("%s %s ", cwd, prompt);
 
     char* line_ptr = line;
     *line_ptr = '\0';
