@@ -188,7 +188,7 @@ VFSFileDescriptor* vfs_open(const char *path, unsigned mode) {
 }
 
 
-int vfs_read(VFSFileDescriptor* fd, void *buffer, size_t size) {
+size_t vfs_read(VFSFileDescriptor* fd, void *buffer, size_t size) {
   return fd->mount->fs->read(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
 
@@ -233,4 +233,16 @@ int vfs_remove(const char* path) {
     = get_path_without_mount_point(path, mount->path);
   
   return mount->fs->remove(mount->fs_data, path_without_mount_point);
+}
+
+int vfs_stat(const char* path, VFSStat* stat) {
+  VFSMountPoint* mount = find_mount_point(path);
+  if (mount == NULL) {
+    return -1;
+  }
+
+  const char* path_without_mount_point 
+    = get_path_without_mount_point(path, mount->path);
+  
+  return mount->fs->stat(mount->fs_data, path_without_mount_point, stat);
 }
