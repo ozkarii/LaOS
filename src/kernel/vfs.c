@@ -192,7 +192,7 @@ size_t vfs_read(VFSFileDescriptor* fd, void *buffer, size_t size) {
   return fd->mount->fs->read(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
 
-int vfs_write(VFSFileDescriptor* fd, const void *buffer, size_t size) {
+size_t vfs_write(VFSFileDescriptor* fd, const void *buffer, size_t size) {
   return fd->mount->fs->write(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
 

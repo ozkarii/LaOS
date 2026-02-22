@@ -31,7 +31,7 @@ typedef struct RamFS {
 
 static void* ramfs_open(void *fs_data, const char *path, unsigned mode);
 static size_t ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
-static int ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
+static size_t ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
 static int ramfs_close(void *fs_data, void *file);
 static int ramfs_seek(void *fs_data, void *file, size_t offset);
 static int ramfs_mkdir(void* fs_data, const char* path);
@@ -212,7 +212,7 @@ static size_t ramfs_read(void *fs_data, void *handle, void *buffer, size_t size)
   return to_read;
 }
 
-static int ramfs_write(void *fs_data, void *handle, const void *buffer, size_t size) {
+static size_t ramfs_write(void *fs_data, void *handle, const void *buffer, size_t size) {
   (void)fs_data;
   RamFSHandle *h = (RamFSHandle*)handle;
   
