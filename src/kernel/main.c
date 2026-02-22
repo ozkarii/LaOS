@@ -18,6 +18,21 @@
 #include "mmu.h"
 #include "vfs.h"
 #include "ramfs.h"
+#include "log.h"
+#include "process.h"
+
+#define INIT_BIN_LOAD_ADDR 0x70000000UL 
+#define INIT_BIN_PATH      "/sbin/init"
+
+const uint8_t INIT_BIN_END_MAGIC[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+
+const char* INITIAL_RAMFS_DIRECTORIES[] = {
+  "/sbin",
+  "/bin",
+  "/dev",
+  NULL
+};
+
 
 void console_loop_task(void) {
   console_loop("#");
@@ -33,43 +48,89 @@ void task_sleep_demo(void) {
   }
 }
 
-void ramfs_test_task(void) {
-  VFSFileDescriptor* fd = vfs_open("/testfile.txt", MODE_CREATE | MODE_WRITE);
-  if (fd == NULL) {
-    k_printf("ramfs_test_task: failed to open file for writing\r\n");
-    return;
-  }
 
-  const char* message = "Hello, RamFS!\n";
-  vfs_write(fd, message, strlen(message));
-  vfs_close(fd);
-
-  fd = vfs_open("/testfile.txt", MODE_READ);
-  if (fd == NULL) {
-    k_printf("ramfs_test_task: failed to open file for reading\r\n");
-    return;
-  }
-
-  char buffer[64];
-  int bytes_read = vfs_read(fd, buffer, sizeof(buffer) - 1);
-  if (bytes_read > 0) {
-    buffer[bytes_read] = '\0';  // Null-terminate the string
-    k_printf("ramfs_test_task: read from file: %s", buffer);
-  } else {
-    k_printf("ramfs_test_task: failed to read from file\r\n");
-  }
-
-  vfs_close(fd);
+static int copy_raw_binary_from_memory_to_file(VFSFileDescriptor* fd, void* src) {
+  uint8_t* src_ptr = (uint8_t*)src;
+  size_t total_bytes_written = 0;
 
   while (1) {
-    sched_sleep(1000000000);
+    // Check for end magic
+    uint8_t* magic_ptr = src_ptr + total_bytes_written;
+    for (size_t i = 0; i < sizeof(INIT_BIN_END_MAGIC); i++) {
+      if (*(magic_ptr + i) != INIT_BIN_END_MAGIC[i]) {
+        break;
+      }
+      if (i == sizeof(INIT_BIN_END_MAGIC) - 1) {
+        k_printf(LOG_FS "Finished copying init binary, total bytes: %lu\n", total_bytes_written);
+        return 0;  // Reached end magic
+      }
+    }
+
+    // Write one byte at a time
+    int bytes_written = vfs_write(fd, src_ptr + total_bytes_written, 1);
+    if (bytes_written != 1) {
+      k_printf(LOG_FS "Failed to write byte to init binary file in RamFS\n");
+      k_printf(LOG_FS "Wrote %lu bytes\n", total_bytes_written);
+      return -1;
+    }
+    total_bytes_written += bytes_written;
   }
+
+  return 0;
+}
+
+int setup_ramfs(void) {
+  // Allocate 64 MB for ramfs
+  static uint8_t ramfs_buffer[0x4000000];
+
+  const size_t ramfs_size = ramfs_get_size();
+  k_printf(LOG_FS "RamFS size: 0x%lx\n", ramfs_size);
+
+  if (ramfs_size > sizeof(ramfs_buffer)) {
+    k_printf(LOG_FS  "Size of RamFS is too big for ramfs_buffer!\n");
+    return -1;
+  }
+
+  void* ramfs = ramfs_init((void*)ramfs_buffer, sizeof(ramfs_buffer));
+  if (ramfs == NULL) {
+    k_printf(LOG_FS "Failed to initialize RamFS\n");
+    return -1;
+  }
+
+  VFSInterface* ramfs_if = ramfs_get_vfs_interface();
+  vfs_mount("/", ramfs_if, ramfs);
+  k_printf(LOG_FS "Mounted RamFS at /\n");
+
+  // Create initial directories
+  for (int i = 0; INITIAL_RAMFS_DIRECTORIES[i] != NULL; i++) {
+    int ret = vfs_mkdir(INITIAL_RAMFS_DIRECTORIES[i]);
+    if (ret != 0) {
+      k_printf(LOG_FS "Failed to create initial RamFS directory %s\n", INITIAL_RAMFS_DIRECTORIES[i]);
+      return -1;
+    }
+  }
+  k_printf(LOG_FS "Created initial RamFS directories\n");
+
+
+  VFSFileDescriptor* init_process_fd = vfs_open(INIT_BIN_PATH, MODE_CREATE | MODE_WRITE | MODE_READ);
+  if (init_process_fd == NULL) {
+    k_printf(LOG_FS "Failed to create file %s for init process\n", INIT_BIN_PATH);
+    return -1;
+  }
+  k_printf(LOG_FS "Created init process file %s in RamFS\n", INIT_BIN_PATH);
+
+  int ret = copy_raw_binary_from_memory_to_file(init_process_fd, (void*)INIT_BIN_LOAD_ADDR);
+  if (ret != 0) {
+    k_printf(LOG_FS "Failed to copy init process binary from 0x%lx to RamFS\n", INIT_BIN_LOAD_ADDR);
+    return -1;
+  }
+
+  vfs_close(init_process_fd);
+
+  return 0;
 }
 
 static _Atomic bool primary_cpu_started = false;
-
-// Allocate plenty (64 MB) for ramfs
-uint8_t ramfs_buffer[0x4000000];
 
 int c_entry() {
   mmu_init(true);
@@ -90,30 +151,24 @@ int c_entry() {
   gicd_enable();
   gicc_enable(GET_CPU_ID());
 
-  ENABLE_ALL_INTERRUPTS();
-
-  const size_t ramfs_size = ramfs_get_size();
-  k_printf("RamFS size: 0x%lx\n", ramfs_size);
-
-  if (ramfs_size > sizeof(ramfs_buffer)) {
-    k_printf("Size of RamFS is too big for ramfs_buffer!\n");
-  }
-
-  void* ramfs = ramfs_init((void*)ramfs_buffer, sizeof(ramfs_buffer));
-  if (ramfs == NULL) {
-    k_printf("Failed to initialize RamFS\n");
-    while(1);
-  }
-
-  VFSInterface* ramfs_if = ramfs_get_vfs_interface();
-  vfs_mount("/", ramfs_if, ramfs);
-  k_printf("Mounted RamFS at /\r\n");
+  UNMASK_ALL_INTERRUPTS();
 
   sched_init(100000, gicc_end_irq);
 
-  sched_create_task(ramfs_test_task);
+  if (setup_ramfs() != 0) {
+    k_printf(LOG_KERNEL "Failed to setup RamFS, cannot proceed\n");
+    while (1);
+  }
 
-  k_printf("Primary CPU0 starting up...\r\n");
+  pid_t init_process_pid = process_create_init_process();
+  if (init_process_pid < 0) {
+    k_printf(LOG_KERNEL "Failed to create init process, cannot proceed\n");
+    while (1);
+  } else {
+    k_printf(LOG_KERNEL "Created init process with PID %d\n", init_process_pid);
+  }
+
+  k_printf(LOG_KERNEL "Primary CPU0 started\r\n");
   primary_cpu_started = true;
 
   sched_start();
@@ -127,7 +182,7 @@ int c_entry_secondary_core(void) {
   }
 
   uint32_t cpu_id = GET_CPU_ID();
-  k_printf("Secondary CPU%u starting up...\r\n", cpu_id);
+  k_printf(LOG_KERNEL "Secondary CPU%u starting up...\r\n", cpu_id);
 
   mmu_init(false);
 
@@ -137,14 +192,14 @@ int c_entry_secondary_core(void) {
 
   switch (cpu_id) {
   case 1:
-    sched_create_task(console_loop_task);
+    //sched_create_kernel_task(console_loop_task);
     break;
   case 2:
     break;
   case 3:
     break;
   default:
-    k_printf("Dubious CPU%u entering idle loop...\r\n", cpu_id);
+    k_printf(LOG_KERNEL "Dubious CPU%u entering idle loop...\r\n", cpu_id);
     WAIT_FOR_INTERRUPT();
     break;
   }
