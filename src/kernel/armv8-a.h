@@ -96,27 +96,28 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 /* CPU */
 
 #define GET_CPU_ID() (GET_MPIDR() & 0xFF)
+#define IS_SYSCALL_EXCEPTION(esr) (((esr) >> 26) == 0x15)
 
 /* INTERRUPTS */
 
 #define EL1_PHY_TIM_IRQ 30u
 
-#define ENABLE_IRQ() \
+#define UNMASK_IRQ() \
     asm volatile ("msr daifclr, #2" ::: "memory")
 
-#define DISABLE_IRQ() \
+#define MASK_IRQ() \
     asm volatile ("msr daifset, #2" ::: "memory")
 
-#define ENABLE_FIQ() \
+#define UNMASK_FIQ() \
     asm volatile ("msr daifclr, #1" ::: "memory")
 
-#define DISABLE_FIQ() \
+#define MASK_FIQ() \
     asm volatile ("msr daifset, #1" ::: "memory")
 
-#define ENABLE_ALL_INTERRUPTS() \
+#define UNMASK_ALL_INTERRUPTS() \
     asm volatile ("msr daifclr, #3" ::: "memory")
 
-#define DISABLE_ALL_INTERRUPTS() \
+#define MASK_ALL_INTERRUPTS() \
     asm volatile ("msr daifset, #3" ::: "memory")
 
 #define WAIT_FOR_INTERRUPT() \
@@ -129,6 +130,7 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("\n========= Register Dump Start =========\n");
     
     printf_func("\n--- General Registers ---\n");
+    printf_func("CPUID:            %u\n", GET_CPU_ID());
     printf_func("SP (x31):         0x%lx\n", GET_SP());
     printf_func("FP (x29):         0x%lx\n", GET_FP());
     printf_func("LR (x30):         0x%lx\n", GET_LR());
@@ -143,6 +145,7 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("DAIF:             0x%x\n", GET_DAIF());
     printf_func("NZCV:             0x%x\n", GET_NZCV());
     printf_func("CurrentEL:        0x%x (EL%u)\n", GET_CURRENT_EL(), GET_CURRENT_EL() >> 2);
+    printf_func("SPSEL:            0x%x\n", GET_SPSEL());
 
     if ((GET_CURRENT_EL() >> 2) < 1) {
         printf_func("\n========= Register Dump End =========\n");
@@ -152,7 +155,7 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("\n--- EL1 Registers ---\n");
     printf_func("ESR_EL1:          0x%x (decode: https://esr.arm64.dev/#0x%x)\n",
                 GET_ESR_EL1(), GET_ESR_EL1());
-                printf_func("ELR_EL1:          0x%lx\n", GET_ELR_EL1());
+                printf_func("ELR_EL1:          0x%lx (decode: aarch64-none-elf-addr2line -e build/kernel/kernel.elf 0x%lx )\n", GET_ELR_EL1(), GET_ELR_EL1());
     printf_func("FAR_EL1:          0x%lx\n", GET_FAR_EL1());
     printf_func("SPSR_EL1:         0x%x\n", GET_SPSR_EL1());
     printf_func("MPIDR_EL1:        0x%x\n", GET_MPIDR());

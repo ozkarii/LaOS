@@ -8,7 +8,7 @@ void spinlock_acquire(Spinlock* lock) {
   }
 #else
   (void)lock;
-  DISABLE_ALL_INTERRUPTS();
+  MASK_ALL_INTERRUPTS();
 #endif
 }
 
@@ -17,6 +17,6 @@ void spinlock_release(Spinlock* lock) {
   atomic_store(&lock->locked, 0);
 #else
   (void)lock;
-  ENABLE_ALL_INTERRUPTS();
+  UNMASK_ALL_INTERRUPTS();
 #endif
 }
