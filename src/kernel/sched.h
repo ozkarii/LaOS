@@ -11,10 +11,16 @@ typedef int64_t task_id_t;
 
 typedef void (*EndIRQCallback)(uint32_t, uint32_t);
 
+typedef enum {
+  TASK_TYPE_KERNEL,
+  TASK_TYPE_USER
+} TaskType;
+
 // TODO: refactor function return values
 
 void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback);
-task_id_t sched_create_task(void (*task_func)(void));
+task_id_t sched_create_kernel_task(void (*task_func)(void));
+task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id);
 int sched_start(void);
 void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_after_ctx_save);
 task_id_t sched_get_task_id(void);
