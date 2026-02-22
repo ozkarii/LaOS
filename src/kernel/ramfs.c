@@ -3,7 +3,7 @@
 
 #define RAMFS_MAX_FILES 64
 #define RAMFS_MAX_CHILDREN 16
-#define RAMFS_MAX_FILE_SIZE 1024
+#define RAMFS_MAX_FILE_SIZE (1024 * 4)  // 4KB max file size
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
 
 typedef struct RamFSFile RamFSFile;
@@ -30,13 +30,14 @@ typedef struct RamFS {
 
 
 static void* ramfs_open(void *fs_data, const char *path, unsigned mode);
-static int ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
+static size_t ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
 static int ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
 static int ramfs_close(void *fs_data, void *file);
 static int ramfs_seek(void *fs_data, void *file, size_t offset);
 static int ramfs_mkdir(void* fs_data, const char* path);
 static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size);
 static int ramfs_remove(void* fs_data, const char* path);
+static int ramfs_stat(void* fs_data, const char* path, VFSStat* stat);
 
 VFSInterface ramfs_if = {
   .open = ramfs_open,
@@ -46,7 +47,8 @@ VFSInterface ramfs_if = {
   .seek = ramfs_seek,
   .mkdir = ramfs_mkdir,
   .readdir = ramfs_readdir,
-  .remove = ramfs_remove
+  .remove = ramfs_remove,
+  .stat = ramfs_stat
 };
 
 void* ramfs_init(void* dest, size_t max_size) {
@@ -197,7 +199,7 @@ static void* ramfs_open(void *fs_data, const char *path, unsigned mode) {
   return handle;
 }
 
-static int ramfs_read(void *fs_data, void *handle, void *buffer, size_t size) {
+static size_t ramfs_read(void *fs_data, void *handle, void *buffer, size_t size) {
   (void)fs_data;
   RamFSHandle *h = (RamFSHandle*)handle;
   
@@ -207,7 +209,7 @@ static int ramfs_read(void *fs_data, void *handle, void *buffer, size_t size) {
   memcpy(buffer, h->file->data + h->offset, to_read);
   h->offset += to_read;
   
-  return (int)to_read;
+  return to_read;
 }
 
 static int ramfs_write(void *fs_data, void *handle, const void *buffer, size_t size) {
@@ -316,4 +318,18 @@ static int ramfs_remove(void* fs_data, const char* path) {
   }
 
   return destroy_file(file);
+}
+
+static int ramfs_stat(void* fs_data, const char* path, VFSStat* stat) {
+  RamFS* fs = (RamFS*)fs_data;
+
+  RamFSFile* file = find_file(fs, path);
+  if (file == NULL) {
+    return -1; // File doesn't exist
+  }
+
+  stat->size = file->size;
+  stat->is_directory = file->is_directory;
+
+  return 0;
 }
