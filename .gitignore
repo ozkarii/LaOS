@@ -3,6 +3,7 @@ toolchain/**
 *.o
 *.elf
 *.a
+*.bin
 
 tests/build
 
