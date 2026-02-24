@@ -145,7 +145,7 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("DAIF:             0x%x\n", GET_DAIF());
     printf_func("NZCV:             0x%x\n", GET_NZCV());
     printf_func("CurrentEL:        0x%x (EL%u)\n", GET_CURRENT_EL(), GET_CURRENT_EL() >> 2);
-    printf_func("SPSEL:            0x%x\n", GET_SPSEL());
+    printf_func("SPSel:            0x%x\n", GET_SPSEL());
 
     if ((GET_CURRENT_EL() >> 2) < 1) {
         printf_func("\n========= Register Dump End =========\n");
