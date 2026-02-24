@@ -1,3 +1,13 @@
+/**
+ * Scheduler
+ * 
+ * TODO
+ * - Refactor id - idx
+ * - Refactor task creation functions, currently duplicate code
+ * - Add task termination and cleanup
+ * - Split code into common and CPU-core-specific parts 
+ */
+
 #include "string.h"
 #include "armv8-a.h"
 #include "sched.h"
@@ -28,7 +38,7 @@
       "mov sp, %0\n" \
       "br %1\n" \
       : \
-      : "r" (task_ctx.sp), "r" (task_ctx.pc) \
+      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -41,7 +51,7 @@
       "msr elr_el1, %1\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.sp), "r" (task_ctx.pc) \
+      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -56,7 +66,7 @@
       "msr elr_el1, %1\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.sp), "r" (task_ctx.pc) \
+      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -73,12 +83,24 @@
     ); \
   } while (0)
 
+// Save user stack pointer to task context, used for restoring context on task switch
+#define SAVE_SP_EL0(task_ctx) \
+  do { \
+    __asm__ __volatile__ ( \
+      "mrs x0, sp_el0\n" \
+      "str x0, [%0]\n" \
+      : \
+      : "r" (&task_ctx.sp_el0) \
+      : "x0", "memory" \
+    ); \
+  } while (0)
+
 
 // Restore full context from IRQ context and return from exception
-// Assumes that task_ctx.sp points to the saved context on the stack,
+// Assumes that task_ctx.sp_el1 points to the saved context on the stack,
 // starting from x30 down to x0
 // Jumps to task_ctx.pc with eret after restoring.
-#define RESTORE_CONTEXT_FROM_IRQ(task_ctx) \
+#define RESTORE_KERNEL_CONTEXT_FROM_IRQ(task_ctx) \
   do { \
     __asm__ __volatile__ ( \
       "msr elr_el1, %0\n" \
@@ -101,7 +123,7 @@
       "ldp x0, x1, [sp], #16\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.pc), "r" (task_ctx.sp) \
+      : "r" (task_ctx.pc), "r" (task_ctx.sp_el1) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -110,10 +132,11 @@
   do { \
     __asm__ __volatile__ ( \
       "mrs x0, spsr_el1\n" \
-      "bic x0, x0, #0xF\n"\
+      "bic x0, x0, #0x0F\n"\
       "msr spsr_el1, x0\n" \
       "msr elr_el1, %0\n" \
-      "mov sp, %1\n" \
+      "msr sp_el0, %1\n" \
+      "mov sp, %2\n" \
       "ldr x30, [sp], #8\n" \
       "ldp x28, x29, [sp], #16\n" \
       "ldp x26, x27, [sp], #16\n" \
@@ -132,7 +155,7 @@
       "ldp x0, x1, [sp], #16\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.pc), "r" (task_ctx.sp) \
+      : "r" (task_ctx.pc), "r" (task_ctx.sp_el0), "r" (task_ctx.sp_el1) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -146,7 +169,11 @@ typedef enum {
 } TaskState;
 
 typedef struct TaskContext {
-  uintptr_t sp;
+  // Stack where context is saved during IRQ, used for restoring context on task switch
+  uintptr_t sp_el1;
+  // User stack pointer if user task
+  uintptr_t sp_el0;
+  // Program counter to jump to when starting the task for the first time or restoring context
   uintptr_t pc;
 } TaskContext;
 
@@ -200,19 +227,20 @@ void idle_task(void) {
   }
 }
 
-static inline Task* get_current_task(void) {
+static inline Task* get_cpu_current_task(void) {
   return &sched_ctx.task_list[sched_ctx.current_task[GET_CPU_ID()]];
 }
 
-static inline int64_t get_current_task_idx(void) {
+static inline int64_t get_cpu_current_task_idx(void) {
   return sched_ctx.current_task[GET_CPU_ID()];
 }
 
-static inline void set_current_task_idx(int64_t idx) {
+// CPU core specific
+static inline void set_cpu_current_task_idx(int64_t idx) {
   sched_ctx.current_task[GET_CPU_ID()] = idx;
 }
 
-static inline int64_t get_idle_task_idx(void) {
+static inline int64_t get_cpu_idle_task_idx(void) {
   return IDLE_TASK_INDEX + GET_CPU_ID();
 }
 
@@ -221,7 +249,8 @@ static void create_idle_tasks(void) {
   for (uint32_t cpu = 0; cpu < NUM_CPUS; cpu++) {
     Task* task = &sched_ctx.task_list[IDLE_TASK_INDEX + cpu];
     task->id = (task_id_t)(IDLE_TASK_INDEX + cpu);
-    task->ctx.sp = (uintptr_t)&task->stack[TASK_STACK_SIZE];
+    task->ctx.sp_el1 = (uintptr_t)&task->stack[TASK_STACK_SIZE];
+    task->ctx.sp_el0 = 0;
     task->ctx.pc = (uintptr_t)idle_task;
     task->state = TASK_STATE_INITIAL;
     task->sleep_until = 0;
@@ -237,7 +266,7 @@ static inline bool is_schedulable(Task* task) {
 
 static int64_t determine_next_task(void) {
   // Simple FIFO: find the next task in ready state by looping through all tasks
-  uint32_t orig_task_idx = get_current_task_idx();
+  uint32_t orig_task_idx = get_cpu_current_task_idx();
 
   uint32_t task_idx = orig_task_idx;
   for (uint32_t i = 0; i < MAX_TASKS; i++) {
@@ -284,7 +313,7 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
     } else {
       spinlock_release(&sched_ctx.lock);
       mmu_set_user_l2_table(NULL);
-      RESTORE_CONTEXT_FROM_IRQ(new_task->ctx);
+      RESTORE_KERNEL_CONTEXT_FROM_IRQ(new_task->ctx);
     }
   }
 }
@@ -301,19 +330,18 @@ int sched_start(void) {
   if (sched_ctx.initialized == false) {
     return -1;
   }
-  start_timer();
+
+  // No lock needed because this is CPU specific
 
   // Start with idle task
-  set_current_task_idx(get_idle_task_idx());
+  set_cpu_current_task_idx(get_cpu_idle_task_idx());
 
-  spinlock_acquire(&sched_ctx.lock);
-
-  Task* task = get_current_task();
+  Task* task = get_cpu_current_task();
   task->state = TASK_STATE_RUNNING;
 
-  spinlock_release(&sched_ctx.lock);
+  LOG(LOG_SCHED "switch CPU%d: start -> %ld\r\n", GET_CPU_ID(), task->id);
 
-  LOG(LOG_SCHED "switch: start -> %ld\r\n", task->id);
+  start_timer();
 
   INITIAL_JUMP_TO_TASK(task->ctx);
 
@@ -339,18 +367,18 @@ void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_afte
   stop_timer();
   wake_up_tasks();
 
-  Task* current_task = get_current_task();
+  Task* current_task = get_cpu_current_task();
 
   if (current_task->state == TASK_STATE_RUNNING) {
     current_task->state = TASK_STATE_READY;
   }
 
   int64_t next_task_idx = determine_next_task();
-  LOG(LOG_SCHED "switch: %ld -> %ld\r\n",
-           current_task->id,
+  LOG(LOG_SCHED "switch CPU%d: %ld -> %ld\r\n",
+           cpu_id, current_task->id,
            sched_ctx.task_list[next_task_idx].id);
 
-  if (next_task_idx == get_current_task_idx()) {
+  if (next_task_idx == get_cpu_current_task_idx()) {
     start_timer();
     current_task->state = TASK_STATE_RUNNING;
     spinlock_release(&sched_ctx.lock);
@@ -362,8 +390,15 @@ void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_afte
   // Context switch needed, save the rest of the context
   // General purpose registers have been saved already to the stack
   SAVE_ELR_EL1(current_task->ctx);
-  current_task->ctx.sp = sp_after_ctx_save;
-  set_current_task_idx(next_task_idx);
+  LOG(LOG_SCHED "saved elr_el1: 0x%lx\r\n", current_task->ctx.pc);
+
+  if (current_task->type == TASK_TYPE_USER) {
+    SAVE_SP_EL0(current_task->ctx);
+    LOG(LOG_SCHED "saved sp_el0: 0x%lx\r\n", current_task->ctx.sp_el0);
+  }
+
+  current_task->ctx.sp_el1 = sp_after_ctx_save;
+  set_cpu_current_task_idx(next_task_idx);
 
   switch_context_from_irq(next_task, int_id, cpu_id);
   __builtin_unreachable();
@@ -374,13 +409,14 @@ task_id_t sched_create_kernel_task(void (*task_func)(void)) {
     return NO_TASK;
   }
 
+  spinlock_acquire(&sched_ctx.lock);
   uint32_t new_task_idx = sched_ctx.task_count;
   Task* new_task = &sched_ctx.task_list[new_task_idx];
 
-  spinlock_acquire(&sched_ctx.lock);
   sched_ctx.task_count++;
   new_task->id = (task_id_t)new_task_idx; // for now id == index
-  new_task->ctx.sp = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
+  new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
+  new_task->ctx.sp_el0 = 0;
   new_task->ctx.pc = (uintptr_t)task_func;
   new_task->state = TASK_STATE_INITIAL;
   new_task->sleep_until = 0;
@@ -396,15 +432,16 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, u
     return NO_TASK;
   }
 
+  spinlock_acquire(&sched_ctx.lock);
   uint32_t new_task_idx = sched_ctx.task_count;
   Task* new_task = &sched_ctx.task_list[new_task_idx];
 
-  spinlock_acquire(&sched_ctx.lock);
   sched_ctx.task_count++;
   new_task->id = (task_id_t)new_task_idx; // for now id == index
   // crt will set the initial user stack pointer
+  new_task->ctx.sp_el0 = 0;
   // this will be used when storing/restoring context
-  new_task->ctx.sp = 0;
+  new_task->ctx.sp_el1 = 0;
   new_task->ctx.pc = entry_point_va;
   new_task->state = TASK_STATE_INITIAL;
   new_task->sleep_until = 0;
@@ -417,12 +454,12 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, u
 }
 
 task_id_t sched_get_task_id(void) {
-  return sched_ctx.task_list[get_current_task_idx()].id;
+  return sched_ctx.task_list[get_cpu_current_task_idx()].id;
 }
 
 void sched_block_task(void) {
   spinlock_acquire(&sched_ctx.lock);
-  get_current_task()->state = TASK_STATE_BLOCKED;
+  get_cpu_current_task()->state = TASK_STATE_BLOCKED;
   spinlock_release(&sched_ctx.lock);
   sched_yield();
 }
@@ -445,7 +482,7 @@ void sched_sleep(uint64_t sleep_us) {
   // Calculate wake-up time
   uint64_t current_time_ticks = GET_TIMER_COUNT();
   uint64_t sleep_ticks = US_TO_CNTP_TVAL(sleep_us);
-  Task* current_task = get_current_task();
+  Task* current_task = get_cpu_current_task();
   
   spinlock_acquire(&sched_ctx.lock);
   current_task->sleep_until = current_time_ticks + sleep_ticks;

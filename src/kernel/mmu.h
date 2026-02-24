@@ -101,7 +101,7 @@ VB   - validity descriptor bit
 #define MAIR_NORMAL_NC      0x44
 
 
-void mmu_init(bool primary_core);
+void mmu_init(void);
 
 uint64_t* mmu_create_user_l2_table(void);
 void mmu_free_user_l2_table(uint64_t* l2_table);

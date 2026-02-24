@@ -1,3 +1,4 @@
+#include "armv8-a.h"
 #include "string.h"
 #include "mmu.h"
 #include "spinlock.h"
@@ -5,7 +6,7 @@
 
 // Needs 4KB alignment
 __attribute__((aligned(4096)))
-static uint64_t l1_page_table[L1_PAGE_TABLE_ENTRIES];
+static uint64_t l1_page_table[NUM_CPUS][L1_PAGE_TABLE_ENTRIES];
 
 // Kernel base address from linker script
 extern uint64_t kernel_base[];
@@ -13,23 +14,22 @@ extern uint64_t device_memory_base[];
 
 static Spinlock mmu_lock = {0};
 
-void mmu_init(bool primary_core) {
-
-  if (primary_core) {
-    // Userspace
-    l1_page_table[0] = DESC_INVALID;
-    
-    // Kernel
-    const uint64_t kernel_block_base = (uint64_t)kernel_base & ~(BLOCK_SIZE_L1 - 1);
-    l1_page_table[1] = UXN | kernel_block_base | AF | SH_INNER | INDX_NORMAL_WB | AP_RW_EL1 | DESC_BLOCK;
-    
-    // Unused (also seems to be unaccessable in QEMU)
-    l1_page_table[2] = DESC_INVALID;
-    
-    // MMIO
-    const uint64_t mmio_block_base = (uint64_t)device_memory_base & ~(BLOCK_SIZE_L1 - 1);
-    l1_page_table[3] = PXN | UXN | mmio_block_base | AF | INDX_DEVICE | AP_RW_EL1 | DESC_BLOCK;
-  }
+void mmu_init(void) {
+  uint32_t cpu_id = GET_CPU_ID();
+  
+  // Userspace
+  l1_page_table[cpu_id][0] = DESC_INVALID;
+  
+  // Kernel
+  const uint64_t kernel_block_base = (uint64_t)kernel_base & ~(BLOCK_SIZE_L1 - 1);
+  l1_page_table[cpu_id][1] = UXN | kernel_block_base | AF | SH_INNER | INDX_NORMAL_WB | AP_RW_EL1 | DESC_BLOCK;
+  
+  // Unused (also seems to be unaccessable in QEMU)
+  l1_page_table[cpu_id][2] = DESC_INVALID;
+  
+  // MMIO
+  const uint64_t mmio_block_base = (uint64_t)device_memory_base & ~(BLOCK_SIZE_L1 - 1);
+  l1_page_table[cpu_id][3] = PXN | UXN | mmio_block_base | AF | INDX_DEVICE | AP_RW_EL1 | DESC_BLOCK;
 
   // Configure MAIR_EL1 with memory attribute attributes
   uint64_t mair = (MAIR_DEVICE_nGnRnE << 0)     // Index 0
@@ -74,15 +74,16 @@ void mmu_free_user_l2_table(uint64_t* l2_table) {
 }
 
 void mmu_set_user_l2_table(uint64_t* l2_table) {
+  uint32_t cpu_id = GET_CPU_ID();
   spinlock_acquire(&mmu_lock);
   
   if (l2_table == NULL) {
     // Invalidate user mappings
-    l1_page_table[0] = DESC_INVALID;
+    l1_page_table[cpu_id][0] = DESC_INVALID;
   } else {
     // Create L1 table descriptor pointing to L2 table
     uint64_t desc = DESC_TABLE | ((uint64_t)l2_table & OA_MASK);
-    l1_page_table[0] = desc;
+    l1_page_table[cpu_id][0] = desc;
   }
   
   // TLB invalidation after page table modification

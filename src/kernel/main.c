@@ -133,7 +133,7 @@ int setup_ramfs(void) {
 static _Atomic bool primary_cpu_started = false;
 
 int c_entry() {
-  mmu_init(true);
+  mmu_init();
   
   pl011_enable();
   pl011_set_rx_irq(true);
@@ -184,7 +184,7 @@ int c_entry_secondary_core(void) {
   uint32_t cpu_id = GET_CPU_ID();
   k_printf(LOG_KERNEL "Secondary CPU%u starting up...\r\n", cpu_id);
 
-  mmu_init(false);
+  mmu_init();
 
   gicd_enable_irq(EL1_PHY_TIM_IRQ);
   gicc_set_priority_mask(0xFF, cpu_id);
@@ -192,7 +192,7 @@ int c_entry_secondary_core(void) {
 
   switch (cpu_id) {
   case 1:
-    //sched_create_kernel_task(console_loop_task);
+    sched_create_kernel_task(console_loop_task);
     break;
   case 2:
     break;
@@ -200,8 +200,9 @@ int c_entry_secondary_core(void) {
     break;
   default:
     k_printf(LOG_KERNEL "Dubious CPU%u entering idle loop...\r\n", cpu_id);
-    WAIT_FOR_INTERRUPT();
-    break;
+    while (1) {
+      WAIT_FOR_INTERRUPT();
+    }
   }
 
   sched_start();
