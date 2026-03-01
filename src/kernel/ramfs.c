@@ -1,9 +1,9 @@
 #include "string.h"
 #include "vfs.h"
 
-#define RAMFS_MAX_FILES 64
-#define RAMFS_MAX_CHILDREN 16
-#define RAMFS_MAX_FILE_SIZE (1024 * 4)  // 4KB max file size
+#define RAMFS_MAX_FILES 32
+#define RAMFS_MAX_CHILDREN 8
+#define RAMFS_MAX_FILE_SIZE (1024 * 32)  // 32KB max file size
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
 
 typedef struct RamFSFile RamFSFile;

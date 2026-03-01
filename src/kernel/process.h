@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#define TEXT_SECTION_VA 0x200000
+#define DATA_SECTION_VA 0x400000
+#define STACK_TOP_VA    0x600000
+
 #define MAX_PROCESSES 64
 #define MAX_OPEN_FDS 16
 

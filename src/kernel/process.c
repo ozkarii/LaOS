@@ -8,6 +8,8 @@
 #include "memory.h"
 #include "mmu.h"
 #include "armv8-a.h"
+#include "elf-loader.h"
+#include "spinlock.h"
 
 
 typedef struct FileDescriptor {
@@ -21,26 +23,33 @@ typedef struct Process {
   bool allocated;
   FileDescriptor open_fds[MAX_OPEN_FDS];
   uint64_t* l2_table;
-  void* code_block_phys_addr;
-  void* data_block_phys_addr;
+  void* code_block_pa;
+  void* data_block_pa;
 } Process;
 
+typedef struct ProcessesContext {
+  Process processes[MAX_PROCESSES];
+  pid_t pid_counter;
+  Spinlock lock;
+} ProcessesContext;
 
-static Process processes[MAX_PROCESSES] = {0};
-static _Atomic pid_t next_pid = 1;
+
+static ProcessesContext ctx;
 
 
 static Process* create_process(void) {
   Process *p = NULL;
 
+  spinlock_acquire(&ctx.lock);
+
   for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (!processes[i].allocated) {
-      p = &processes[i];
+    if (!ctx.processes[i].allocated) {
+      p = &ctx.processes[i];
       break;
     }
   }
   if (p == NULL) {
-    return NULL;
+    goto no_space;
   }
 
   p->allocated = true;
@@ -50,66 +59,61 @@ static Process* create_process(void) {
     goto mmu_create_user_l2_table_fail;
   }
 
-  p->code_block_phys_addr = allocate_user_memory_block(p->l2_table, true);
-  if (p->code_block_phys_addr == NULL) {
+  p->code_block_pa = allocate_user_memory_block(p->l2_table, true);
+  if (p->code_block_pa == NULL) {
     goto user_code_block_alloc_fail;
   }
 
-  p->data_block_phys_addr = allocate_user_memory_block(p->l2_table, false);
-  if (p->data_block_phys_addr == NULL) {
+  p->data_block_pa = allocate_user_memory_block(p->l2_table, false);
+  if (p->data_block_pa == NULL) {
     goto user_data_block_alloc_fail;
   }
 
-  p->task_id = sched_create_user_task((uintptr_t)0x200000, p->l2_table, GET_CPU_ID());
+  p->pid = ctx.pid_counter++;
 
-  if (p->task_id == NO_TASK) {
-    goto sched_create_user_task_fail;
-  }
-
-  p->pid = next_pid++;
+  spinlock_release(&ctx.lock);
 
   return p;
 
-
-sched_create_user_task_fail:
-  free_user_memory_block(p->l2_table, p->code_block_phys_addr);
-  p->code_block_phys_addr = NULL;
 user_data_block_alloc_fail:
-  free_user_memory_block(p->l2_table, p->data_block_phys_addr);
-  p->data_block_phys_addr = NULL;
+  free_user_memory_block(p->l2_table, p->code_block_pa);
+  p->code_block_pa = NULL;
 user_code_block_alloc_fail:
   mmu_free_user_l2_table(p->l2_table);
   p->l2_table = NULL;
 mmu_create_user_l2_table_fail:
   p->allocated = false;
-  
+no_space:
+  spinlock_release(&ctx.lock);
   return NULL;
 }
 
 void process_destroy(pid_t pid) {
   for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (!processes[i].allocated || processes[i].pid != pid) {
+    if (!ctx.processes[i].allocated || ctx.processes[i].pid != pid) {
       continue;
     }
+    spinlock_acquire(&ctx.lock);
     for (int j = 0; j < MAX_OPEN_FDS; j++) {
-      if (processes[i].open_fds[j].vfs_fd != NULL) {
-        if (vfs_close(processes[i].open_fds[j].vfs_fd) != 0) {
+      if (ctx.processes[i].open_fds[j].vfs_fd != NULL) {
+        if (vfs_close(ctx.processes[i].open_fds[j].vfs_fd) != 0) {
           k_printf(LOG_KERNEL "Failed to close fd %d for process %d during destruction\n",
-                   processes[i].open_fds[j].fd, pid);
+                   ctx.processes[i].open_fds[j].fd, pid);
         }
       }
     }
+    mmu_free_user_l2_table(ctx.processes[i].l2_table);
 
-    mmu_free_user_l2_table(processes[i].l2_table);
+    memset(ctx.processes[i].open_fds, 0, sizeof(ctx.processes[i].open_fds));
+    memset(&ctx.processes[i], 0, sizeof(Process));
 
-    memset(processes[i].open_fds, 0, sizeof(FileDescriptor));
-    memset(&processes[i], 0, sizeof(Process));
+    spinlock_release(&ctx.lock);
     return;
   }
 }
 
 pid_t process_create_init_process(void) {
-  if (next_pid != 1) {
+  if (ctx.pid_counter != 0) {
     return -1;
   }
 
@@ -121,8 +125,7 @@ pid_t process_create_init_process(void) {
 
   VFSFileDescriptor* init_bin_fd = vfs_open("/sbin/init", MODE_READ);
   if (init_bin_fd == NULL) {
-    process_destroy(p->pid);
-    return -1;
+    goto destroy_process;
   }
 
   p->open_fds[0].fd = 0;
@@ -130,26 +133,47 @@ pid_t process_create_init_process(void) {
 
   VFSStat stat;
   if (vfs_stat("/sbin/init", &stat) != 0) {
-    vfs_close(init_bin_fd);
-    process_destroy(p->pid);
-    return -1;
+    goto close_init_bin_fd;
   }
 
-  if (vfs_read(init_bin_fd, p->code_block_phys_addr, stat.size) != stat.size) {
-    vfs_close(init_bin_fd);
-    process_destroy(p->pid);
-    return -1;
+  void *tmp_elf = k_malloc(stat.size);
+  if (tmp_elf == NULL) {
+    goto close_init_bin_fd;
   }
+
+  if (vfs_read(init_bin_fd, tmp_elf, stat.size) != stat.size) {
+    goto free_tmp_elf;
+  }
+
+  uint64_t entry_offset = 0;
+  if (elf_load_from_memory(tmp_elf, stat.size, p->code_block_pa,
+                           p->data_block_pa, &entry_offset) != 0) {
+    goto free_tmp_elf;
+  }
+
+  uintptr_t entry_va = (TEXT_SECTION_VA + entry_offset);
+  sched_create_user_task(entry_va, p->l2_table, GET_CPU_ID(), STACK_TOP_VA);
+
+  vfs_close(init_bin_fd);
 
   return p->pid;
+
+free_tmp_elf:
+  k_free(tmp_elf);
+close_init_bin_fd:
+  vfs_close(init_bin_fd);
+destroy_process:
+  process_destroy(p->pid);
+  return -1;
 }
 
 pid_t process_clone(pid_t parent_pid) {
   Process* parent = NULL;
 
+
   for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (processes[i].allocated && processes[i].pid == parent_pid) {
-      parent = &processes[i];
+    if (ctx.processes[i].allocated && ctx.processes[i].pid == parent_pid) {
+      parent = &ctx.processes[i];
       break;
     }
   }

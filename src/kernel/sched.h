@@ -24,7 +24,7 @@ void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback);
 // Create kernel task for caller CPU
 task_id_t sched_create_kernel_task(void (*task_func)(void));
 // Create user task for specified CPU
-task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id);
+task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id, uintptr_t sp);
 
 // Call for each CPU
 int sched_start(void);

@@ -24,13 +24,8 @@
 #define INIT_BIN_LOAD_ADDR 0x70000000UL 
 #define INIT_BIN_PATH      "/sbin/init"
 
-const uint8_t INIT_BIN_END_MAGIC[4] = {0xDE, 0xAD, 0xBE, 0xEF};
-
 const char* INITIAL_RAMFS_DIRECTORIES[] = {
-  "/sbin",
-  "/bin",
-  "/dev",
-  NULL
+  "/sbin"
 };
 
 
@@ -49,31 +44,15 @@ void task_sleep_demo(void) {
 }
 
 
-static int copy_raw_binary_from_memory_to_file(VFSFileDescriptor* fd, void* src) {
-  uint8_t* src_ptr = (uint8_t*)src;
-  size_t total_bytes_written = 0;
+static int copy_init_bin_from_memory_to_file(VFSFileDescriptor* fd, uint8_t* src) {
+  const size_t init_bin_size = (1024 * 8);
 
-  while (1) {
-    // Check for end magic
-    uint8_t* magic_ptr = src_ptr + total_bytes_written;
-    for (size_t i = 0; i < sizeof(INIT_BIN_END_MAGIC); i++) {
-      if (*(magic_ptr + i) != INIT_BIN_END_MAGIC[i]) {
-        break;
-      }
-      if (i == sizeof(INIT_BIN_END_MAGIC) - 1) {
-        k_printf(LOG_FS "Finished copying init binary, total bytes: %lu\n", total_bytes_written);
-        return 0;  // Reached end magic
-      }
-    }
+  size_t bytes_written = vfs_write(fd, src, init_bin_size);
 
-    // Write one byte at a time
-    int bytes_written = vfs_write(fd, src_ptr + total_bytes_written, 1);
-    if (bytes_written != 1) {
-      k_printf(LOG_FS "Failed to write byte to init binary file in RamFS\n");
-      k_printf(LOG_FS "Wrote %lu bytes\n", total_bytes_written);
-      return -1;
-    }
-    total_bytes_written += bytes_written;
+  if (bytes_written != init_bin_size) {
+    k_printf(LOG_FS "Failed to write to init binary file in RamFS\n");
+    k_printf(LOG_FS "Wrote 0x%lx bytes\n", bytes_written);
+    return -1;
   }
 
   return 0;
@@ -102,7 +81,10 @@ int setup_ramfs(void) {
   k_printf(LOG_FS "Mounted RamFS at /\n");
 
   // Create initial directories
-  for (int i = 0; INITIAL_RAMFS_DIRECTORIES[i] != NULL; i++) {
+  const size_t num_dirs = 
+    sizeof(INITIAL_RAMFS_DIRECTORIES) / sizeof(INITIAL_RAMFS_DIRECTORIES[0]);
+
+  for (unsigned i = 0; i < num_dirs; i++) {
     int ret = vfs_mkdir(INITIAL_RAMFS_DIRECTORIES[i]);
     if (ret != 0) {
       k_printf(LOG_FS "Failed to create initial RamFS directory %s\n", INITIAL_RAMFS_DIRECTORIES[i]);
@@ -119,7 +101,7 @@ int setup_ramfs(void) {
   }
   k_printf(LOG_FS "Created init process file %s in RamFS\n", INIT_BIN_PATH);
 
-  int ret = copy_raw_binary_from_memory_to_file(init_process_fd, (void*)INIT_BIN_LOAD_ADDR);
+  int ret = copy_init_bin_from_memory_to_file(init_process_fd, (uint8_t*)INIT_BIN_LOAD_ADDR);
   if (ret != 0) {
     k_printf(LOG_FS "Failed to copy init process binary from 0x%lx to RamFS\n", INIT_BIN_LOAD_ADDR);
     return -1;

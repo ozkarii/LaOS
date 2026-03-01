@@ -64,9 +64,10 @@
       "msr spsr_el1, x0\n" \
       "mov sp, %0\n" \
       "msr elr_el1, %1\n" \
+      "msr sp_el0, %2\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc) \
+      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc), "r" (task_ctx.sp_el0) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -427,7 +428,7 @@ task_id_t sched_create_kernel_task(void (*task_func)(void)) {
   return new_task->id;
 }
 
-task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id) {
+task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id, uintptr_t sp) {
   if (!sched_ctx.initialized || sched_ctx.task_count >= MAX_TASKS) {
     return NO_TASK;
   }
@@ -438,8 +439,7 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, u
 
   sched_ctx.task_count++;
   new_task->id = (task_id_t)new_task_idx; // for now id == index
-  // crt will set the initial user stack pointer
-  new_task->ctx.sp_el0 = 0;
+  new_task->ctx.sp_el0 = sp;
   // this will be used when storing/restoring context
   new_task->ctx.sp_el1 = 0;
   new_task->ctx.pc = entry_point_va;
