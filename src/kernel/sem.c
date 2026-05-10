@@ -44,7 +44,7 @@ int k_sem_wait(KSemaphore* sem) {
   spinlock_acquire(&sem->lock);
   
   if (sem->value == 0) {
-    push_task_to_queue(&sem->wait_queue, sched_get_task_id());
+    push_task_to_queue(&sem->wait_queue, sched_get_cpu_current_task_id());
     spinlock_release(&sem->lock);
     sched_block_task();
     spinlock_acquire(&sem->lock);
@@ -88,7 +88,7 @@ int k_sem_post(KSemaphore* sem) {
   spinlock_acquire(&sem->lock);
   
   if (sem->value >= sem->max_value) {
-    push_task_to_queue(&sem->post_queue, sched_get_task_id());
+    push_task_to_queue(&sem->post_queue, sched_get_cpu_current_task_id());
     spinlock_release(&sem->lock);
     sched_block_task();
     spinlock_acquire(&sem->lock);

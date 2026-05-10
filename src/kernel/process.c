@@ -152,7 +152,7 @@ pid_t process_create_init_process(void) {
   }
 
   uintptr_t entry_va = (TEXT_SECTION_VA + entry_offset);
-  sched_create_user_task(entry_va, p->l2_table, GET_CPU_ID(), STACK_TOP_VA);
+  sched_create_user_task(entry_va, p->l2_table, GET_CPU_ID(), STACK_TOP_VA, p->pid);
 
   vfs_close(init_bin_fd);
 
@@ -196,6 +196,8 @@ pid_t process_clone(pid_t parent_pid) {
   }
 
   clone_process_page_table(child->l2_table, parent->l2_table);
+
+  // Inclomplete
 
   return child->pid;
 }

@@ -91,7 +91,17 @@ handle_sync_exception_spx:
 handle_sync_exception_lower_64:
 handle_sync_exception_lower_32:
     PUSH_CONTEXT
+    // Check exception syndrome reg for syscall
+    mrs x9, esr_el1
+    lsr x9, x9, #26
+    cmp x9, #0x15
+    beq is_syscall
     bl sync_exception_handler
+    b ret_from_sync_exception
+is_syscall:
+    mov x0, sp
+    bl syscall_handler
+ret_from_sync_exception:
     POP_CONTEXT
     eret
 

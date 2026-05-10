@@ -32,26 +32,28 @@
 #endif
 
 // Switch context to task that has been initialized but not run yet
-#define INITIAL_JUMP_TO_TASK(task_ctx) \
+#define INITIAL_JUMP_TO_KERNEL_TASK(task_ctx, param) \
   do { \
     __asm__ __volatile__ ( \
       "mov sp, %0\n" \
-      "br %1\n" \
+      "mov x0, %1\n" \
+      "br %2\n" \
       : \
-      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc) \
+      : "r" (task_ctx.sp_el1), "r" (param), "r" (task_ctx.pc) \
     ); \
     __builtin_unreachable(); \
   } while (0)
 
 // Switch context from IRQ context to task that has been initialized but not run yet
-#define INITIAL_JUMP_TO_TASK_FROM_IRQ(task_ctx) \
+#define INITIAL_JUMP_TO_KERNEL_TASK_FROM_IRQ(task_ctx, param) \
   do { \
     __asm__ __volatile__ ( \
       "mov sp, %0\n" \
-      "msr elr_el1, %1\n" \
+      "mov x0, %1\n" \
+      "msr elr_el1, %2\n" \
       "eret\n" \
       : \
-      : "r" (task_ctx.sp_el1), "r" (task_ctx.pc) \
+      : "r" (task_ctx.sp_el1), "r" (param), "r" (task_ctx.pc) \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -182,10 +184,12 @@ typedef struct Task {
   task_id_t id;
   TaskState state;
   TaskContext ctx;
+  void *param; // Parameter for kernel task function
   uint64_t sleep_until;  // Timer count value when task should wake up
   uint32_t cpu_id;
   TaskType type;
   uint64_t* l2_table;
+  pid_t pid;  // pid of corresponding user process, 0 if not user task
   
   uint8_t pre_stack_padding[256];
   __attribute__((aligned(16))) // AArch64 requires 16-byte alignment
@@ -243,6 +247,10 @@ static inline void set_cpu_current_task_idx(int64_t idx) {
 
 static inline int64_t get_cpu_idle_task_idx(void) {
   return IDLE_TASK_INDEX + GET_CPU_ID();
+}
+
+pid_t sched_get_cpu_current_task_pid(void) {
+  get_cpu_current_task()->pid;
 }
 
 
@@ -303,7 +311,7 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
     } else {
       spinlock_release(&sched_ctx.lock);
       mmu_set_user_l2_table(NULL);
-      INITIAL_JUMP_TO_TASK_FROM_IRQ(new_task->ctx);
+      INITIAL_JUMP_TO_KERNEL_TASK_FROM_IRQ(new_task->ctx, new_task->param);
     }
   }
   else {
@@ -344,7 +352,7 @@ int sched_start(void) {
 
   start_timer();
 
-  INITIAL_JUMP_TO_TASK(task->ctx);
+  INITIAL_JUMP_TO_KERNEL_TASK(task->ctx, task->param);
 
   __builtin_unreachable();
 }
@@ -405,7 +413,7 @@ void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_afte
   __builtin_unreachable();
 }
 
-task_id_t sched_create_kernel_task(void (*task_func)(void)) {
+task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param) {
   if (!sched_ctx.initialized || sched_ctx.task_count >= MAX_TASKS) {
     return NO_TASK;
   }
@@ -419,6 +427,7 @@ task_id_t sched_create_kernel_task(void (*task_func)(void)) {
   new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
   new_task->ctx.sp_el0 = 0;
   new_task->ctx.pc = (uintptr_t)task_func;
+  new_task->param = param;
   new_task->state = TASK_STATE_INITIAL;
   new_task->sleep_until = 0;
   new_task->type = TASK_TYPE_KERNEL;
@@ -428,7 +437,8 @@ task_id_t sched_create_kernel_task(void (*task_func)(void)) {
   return new_task->id;
 }
 
-task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id, uintptr_t sp) {
+task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, 
+                                 uint32_t cpu_id, uintptr_t sp, pid_t pid) {
   if (!sched_ctx.initialized || sched_ctx.task_count >= MAX_TASKS) {
     return NO_TASK;
   }
@@ -448,12 +458,13 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, u
   new_task->type = TASK_TYPE_USER;
   new_task->l2_table = l2_table;
   new_task->cpu_id = cpu_id;
+  new_task->pid = pid;
   spinlock_release(&sched_ctx.lock);
 
   return new_task->id;
 }
 
-task_id_t sched_get_task_id(void) {
+task_id_t sched_get_cpu_current_task_id(void) {
   return sched_ctx.task_list[get_cpu_current_task_idx()].id;
 }
 

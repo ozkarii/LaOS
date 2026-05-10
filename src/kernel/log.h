@@ -8,5 +8,7 @@
 #define LOG_VFS     "[vfs]     "
 #define LOG_RAMFS   "[ramfs]   "
 #define LOG_FS      "[fs]      "
+#define LOG_PROC    "[proc]    "
+#define LOG_SYSCALL "[syscall] "
 
 #endif // LOG_H

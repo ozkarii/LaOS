@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "include/sys/types.h"
 
 #define MAX_TASKS 32
 
@@ -22,9 +23,10 @@ typedef enum {
 void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback);
 
 // Create kernel task for caller CPU
-task_id_t sched_create_kernel_task(void (*task_func)(void));
+task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param);
 // Create user task for specified CPU
-task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, uint32_t cpu_id, uintptr_t sp);
+task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, 
+                                 uint32_t cpu_id, uintptr_t sp, pid_t pid);
 
 // Call for each CPU
 int sched_start(void);
@@ -44,6 +46,10 @@ void sched_yield(void);
 void sched_sleep(uint64_t sleep_us);
 
 // Get the ID of the task currently running on the calling CPU
-task_id_t sched_get_task_id(void);
+task_id_t sched_get_cpu_current_task_id(void);
+
+// Get the PID of the user task currently running on the calling CPU
+// 0 if not user task
+pid_t sched_get_cpu_current_task_pid(void);
 
 #endif /* SCHED_H */
