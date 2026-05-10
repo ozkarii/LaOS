@@ -25,7 +25,7 @@ OBJ := $(OBJ_C) $(OBJ_S)
 
 all: init
 
-init: $(BUILDDIR)/init.bin
+init: $(BUILDDIR)/init.elf
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -38,10 +38,6 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.s | $(BUILDDIR)
 
 $(BUILDDIR)/init.elf: $(OBJ)
 	$(LD) $(LDFLAGS) -o $@ $^
-
-$(BUILDDIR)/init.bin: $(BUILDDIR)/init.elf
-	$(OBJCOPY) -O binary $< $@
-	printf '\xDE\xAD\xBE\xEF' >> $@
 
 clean:
 	rm -rf $(BUILDDIR)
