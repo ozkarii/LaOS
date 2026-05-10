@@ -72,6 +72,8 @@ MAKE_MOV_GETTER_64(GET_X4, x4)
 MAKE_MOV_GETTER_64(GET_X5, x5)
 MAKE_MOV_GETTER_64(GET_X6, x6)
 MAKE_MOV_GETTER_64(GET_X7, x7)
+MAKE_MOV_GETTER_64(GET_X8, x8)
+
 
 /* TIMERS */
 
@@ -126,22 +128,28 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 
 /* REGISTER DUMP */
 
+static inline void cpu_dump_general_registers(void (*printf_func)(const char* format, ...)) {    
+    printf_func("\n--- CPU%u General Registers ---\n", GET_CPU_ID());
+    printf_func("sp (x31):         0x%lx\n", GET_SP());
+    printf_func("fp (x29):         0x%lx\n", GET_FP());
+    printf_func("lr (x30):         0x%lx\n", GET_LR());
+    printf_func("x0:               0x%lx\n", GET_X0());
+    printf_func("x1:               0x%lx\n", GET_X1());
+    printf_func("x2:               0x%lx\n", GET_X2());
+    printf_func("x3:               0x%lx\n", GET_X3());
+    printf_func("x4:               0x%lx\n", GET_X4());
+    printf_func("x5:               0x%lx\n", GET_X5());
+    printf_func("x6:               0x%lx\n", GET_X6());
+    printf_func("x7:               0x%lx\n", GET_X7());
+    printf_func("x8:               0x%lx\n", GET_X8());
+}
+
 static inline void cpu_dump_registers(void (*printf_func)(const char* format, ...)) {
     printf_func("\n========= Register Dump Start =========\n");
+
+    cpu_dump_general_registers(printf_func);
     
-    printf_func("\n--- General Registers ---\n");
-    printf_func("CPUID:            %u\n", GET_CPU_ID());
-    printf_func("SP (x31):         0x%lx\n", GET_SP());
-    printf_func("FP (x29):         0x%lx\n", GET_FP());
-    printf_func("LR (x30):         0x%lx\n", GET_LR());
-    printf_func("X0:               0x%lx\n", GET_X0());
-    printf_func("X1:               0x%lx\n", GET_X1());
-    printf_func("X2:               0x%lx\n", GET_X2());
-    printf_func("X3:               0x%lx\n", GET_X3());
-    printf_func("X4:               0x%lx\n", GET_X4());
-    printf_func("X5:               0x%lx\n", GET_X5());
-    printf_func("X6:               0x%lx\n", GET_X6());
-    printf_func("X7:               0x%lx\n", GET_X7());
+    printf_func("\n--- Status Registers ---\n");
     printf_func("DAIF:             0x%x\n", GET_DAIF());
     printf_func("NZCV:             0x%x\n", GET_NZCV());
     printf_func("CurrentEL:        0x%x (EL%u)\n", GET_CURRENT_EL(), GET_CURRENT_EL() >> 2);
