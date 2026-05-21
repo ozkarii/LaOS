@@ -1,4 +1,4 @@
-#include "include/string.h"
+#include "string.h"
 
 int strcmp ( const char * str1, const char * str2 ) {
     if (str1 == NULL || str2 == NULL) {

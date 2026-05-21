@@ -1,4 +1,4 @@
-#include "include/stdio.h"
+#include "stdio.h"
 
 int snprintf(char* buf, size_t size, const char* format, ...) {
     if (buf == NULL || format == NULL) {

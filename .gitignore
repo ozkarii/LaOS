@@ -5,6 +5,8 @@ toolchain/**
 *.a
 *.bin
 
+build/
+
 tests/build
 
 qemu/
