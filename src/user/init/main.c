@@ -6,5 +6,7 @@ const char message[] = "Hello userland!\n";
 
 int main() {
   write(1, message, sizeof(message) - 1);
-  _exit(0xdead);
+  write(1, message, sizeof(message) - 1);
+  while(1);
+  return 10;
 }

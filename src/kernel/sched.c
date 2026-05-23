@@ -48,12 +48,18 @@
 #define INITIAL_JUMP_TO_KERNEL_TASK_FROM_IRQ(task_ctx, param) \
   do { \
     __asm__ __volatile__ ( \
+      "mrs x0, spsr_el1\n" \
+      "bic x0, x0, #0xF\n" \
+      "mov x1, #0x5\n" \
+      "orr x0, x0, x1\n" \
+      "msr spsr_el1, x0\n" \
       "mov sp, %0\n" \
-      "mov x0, %1\n" \
       "msr elr_el1, %2\n" \
+      "mov x0, %1\n" \
       "eret\n" \
       : \
       : "r" (task_ctx.sp_el1), "r" (param), "r" (task_ctx.pc) \
+      : "x0", "x1", "memory" \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -106,6 +112,11 @@
 #define RESTORE_KERNEL_CONTEXT_FROM_IRQ(task_ctx) \
   do { \
     __asm__ __volatile__ ( \
+      "mrs x0, spsr_el1\n" \
+      "bic x0, x0, #0xF\n" \
+      "mov x1, #0x5\n" \
+      "orr x0, x0, x1\n" \
+      "msr spsr_el1, x0\n" \
       "msr elr_el1, %0\n" \
       "mov sp, %1\n" \
       "ldr x30, [sp], #8\n" \
@@ -127,6 +138,7 @@
       "eret\n" \
       : \
       : "r" (task_ctx.pc), "r" (task_ctx.sp_el1) \
+      : "x0", "x1", "memory" \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -159,6 +171,7 @@
       "eret\n" \
       : \
       : "r" (task_ctx.pc), "r" (task_ctx.sp_el0), "r" (task_ctx.sp_el1) \
+      : "x0", "memory" \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -205,7 +218,7 @@ typedef struct SchedContext {
   uint32_t current_task[NUM_CPUS];
   uint64_t time_slice_cntp_tval;
   EndIRQCallback end_irq_callback;
-  Task task_list[MAX_TASKS + NUM_CPUS];
+  Task task_list[MAX_TASKS * NUM_CPUS];
 } SchedContext;
 
 
@@ -249,8 +262,17 @@ static inline int64_t get_cpu_idle_task_idx(void) {
   return IDLE_TASK_INDEX + GET_CPU_ID();
 }
 
-pid_t sched_get_cpu_current_task_pid(void) {
-  get_cpu_current_task()->pid;
+pid_t sched_get_pid_by_task_id(task_id_t task_id) {
+  for (uint32_t i = 0; i < MAX_TASKS; i++) {
+    if (sched_ctx.task_list[i].id == task_id) {
+      if (sched_ctx.task_list[i].type == TASK_TYPE_USER) {
+        return sched_ctx.task_list[i].pid;
+      } else {
+        return -2;
+      }
+    }
+  }
+  return -1;
 }
 
 
@@ -305,23 +327,23 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
 
   if (initial) {
     if (user_task) {
-      spinlock_release(&sched_ctx.lock);
       mmu_set_user_l2_table(new_task->l2_table);
+      spinlock_release(&sched_ctx.lock);
       INITIAL_JUMP_TO_USER_TASK_FROM_IRQ(new_task->ctx);
     } else {
-      spinlock_release(&sched_ctx.lock);
       mmu_set_user_l2_table(NULL);
+      spinlock_release(&sched_ctx.lock);
       INITIAL_JUMP_TO_KERNEL_TASK_FROM_IRQ(new_task->ctx, new_task->param);
     }
   }
   else {
     if (user_task) {
-      spinlock_release(&sched_ctx.lock);
       mmu_set_user_l2_table(new_task->l2_table);
+      spinlock_release(&sched_ctx.lock);
       RESTORE_USER_CONTEXT_FROM_IRQ(new_task->ctx);
     } else {
-      spinlock_release(&sched_ctx.lock);
       mmu_set_user_l2_table(NULL);
+      spinlock_release(&sched_ctx.lock);
       RESTORE_KERNEL_CONTEXT_FROM_IRQ(new_task->ctx);
     }
   }
@@ -370,6 +392,8 @@ static void wake_up_tasks() {
     }
   }
 }
+
+// TODO: need function to cause rescheduling from syscall
 
 void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_after_ctx_save) {
   spinlock_acquire(&sched_ctx.lock);
@@ -468,7 +492,7 @@ task_id_t sched_get_cpu_current_task_id(void) {
   return sched_ctx.task_list[get_cpu_current_task_idx()].id;
 }
 
-void sched_block_task(void) {
+void sched_block_current_task(void) {
   spinlock_acquire(&sched_ctx.lock);
   get_cpu_current_task()->state = TASK_STATE_BLOCKED;
   spinlock_release(&sched_ctx.lock);
@@ -481,6 +505,13 @@ void sched_unblock_task(task_id_t task_id) {
   if (task->state == TASK_STATE_BLOCKED) {
     task->state = TASK_STATE_READY;
     task->sleep_until = 0UL;
+  }
+}
+
+void sched_block_task(task_id_t task_id) {
+  Task* task = &sched_ctx.task_list[task_id];
+  if (task->state != TASK_STATE_BLOCKED) {
+    task->state = TASK_STATE_BLOCKED;
   }
 }
 

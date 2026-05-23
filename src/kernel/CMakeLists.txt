@@ -19,7 +19,6 @@ add_executable(${TARGET}
   isr.c
   elf-loader.c
   ramfs.c
-  syscall-user.c
   syscall-kernel.c
   el1_vectors.s
   el2_vectors.s

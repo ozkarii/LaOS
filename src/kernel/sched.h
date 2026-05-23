@@ -35,9 +35,10 @@ int sched_start(void);
 void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_after_ctx_save);
 
 // Block indefinitely until sched_unblock_task is called with the task ID
-void sched_block_task(void);
+void sched_block_current_task(void);
 // Unblock task with specified ID, making it eligible for scheduling again
 void sched_unblock_task(task_id_t task_id);
+void sched_block_task(task_id_t task_id);
 
 // Yield the CPU to allow other tasks to run, but don't block the current task
 void sched_yield(void);
@@ -48,8 +49,7 @@ void sched_sleep(uint64_t sleep_us);
 // Get the ID of the task currently running on the calling CPU
 task_id_t sched_get_cpu_current_task_id(void);
 
-// Get the PID of the user task currently running on the calling CPU
-// 0 if not user task
-pid_t sched_get_cpu_current_task_pid(void);
+// -1 if no task with the given ID exists, -2 if the task is not a user task
+pid_t sched_get_pid_by_task_id(task_id_t task_id);
 
 #endif /* SCHED_H */

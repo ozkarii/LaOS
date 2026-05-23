@@ -69,7 +69,8 @@ static Process* create_process(void) {
     goto user_data_block_alloc_fail;
   }
 
-  p->pid = ctx.pid_counter++;
+  // First pid is 1
+  p->pid = ++ctx.pid_counter;
 
   spinlock_release(&ctx.lock);
 
@@ -152,7 +153,11 @@ pid_t process_create_init_process(void) {
   }
 
   uintptr_t entry_va = (TEXT_SECTION_VA + entry_offset);
-  sched_create_user_task(entry_va, p->l2_table, GET_CPU_ID(), STACK_TOP_VA, p->pid);
+  task_id_t id = sched_create_user_task(entry_va, p->l2_table, GET_CPU_ID(),
+                                        STACK_TOP_VA, p->pid);
+  if (id == NO_TASK) {
+    goto free_tmp_elf;
+  }
 
   vfs_close(init_bin_fd);
 
@@ -202,3 +207,13 @@ pid_t process_clone(pid_t parent_pid) {
   return child->pid;
 }
 
+int process_load_l2_table(pid_t pid) {
+  for (int i = 0; i < MAX_PROCESSES; i++) {
+    Process* process = &ctx.processes[i];
+    if (process->pid == pid) {
+      mmu_set_user_l2_table(process->l2_table);
+      return 0;
+    }
+  }
+  return -1;
+}

@@ -16,4 +16,6 @@
 #define SYS_READ    22
 #define SYS_CLOSE   23
 
+#define MAX_SYSCALL_PARAMS 6
+
 #endif // SYSCALL_COMMON_H

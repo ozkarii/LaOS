@@ -99,7 +99,6 @@ handle_sync_exception_lower_32:
     bl sync_exception_handler
     b ret_from_sync_exception
 is_syscall:
-    mov x0, sp
     bl syscall_handler
 ret_from_sync_exception:
     POP_CONTEXT

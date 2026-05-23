@@ -100,6 +100,25 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 #define GET_CPU_ID() (GET_MPIDR() & 0xFF)
 #define IS_SYSCALL_EXCEPTION(esr) (((esr) >> 26) == 0x15)
 
+#define READ_AS_EL0_8(addr) ({ \
+    uint8_t val; \
+    asm volatile ("ldtrb %w0, [%1]" : "=r"(val) : "r"(addr)); \
+    val; \
+})
+
+#define WRITE_AS_EL0_8(addr, val) \
+    asm volatile ("sttrb %w0, [%1]" : : "r"(val), "r"(addr))
+
+#define READ_AS_EL0_64(addr) ({ \
+    uint64_t val; \
+    asm volatile ("ldtr %0, [%1]" : "=r"(val) : "r"(addr)); \
+    val; \
+})
+
+#define WRITE_AS_EL0_64(addr, val) \
+    asm volatile ("sttr %0, [%1]" : : "r"(val), "r"(addr))
+
+
 /* INTERRUPTS */
 
 #define EL1_PHY_TIM_IRQ 30u
@@ -163,7 +182,7 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
     printf_func("\n--- EL1 Registers ---\n");
     printf_func("ESR_EL1:          0x%x (decode: https://esr.arm64.dev/#0x%x)\n",
                 GET_ESR_EL1(), GET_ESR_EL1());
-                printf_func("ELR_EL1:          0x%lx (decode: aarch64-none-elf-addr2line -e build/kernel/kernel.elf 0x%lx )\n", GET_ELR_EL1(), GET_ELR_EL1());
+                printf_func("ELR_EL1:          0x%lx (decode: aarch64-none-elf-addr2line -e build/src/kernel/kernel 0x%lx )\n", GET_ELR_EL1(), GET_ELR_EL1());
     printf_func("FAR_EL1:          0x%lx\n", GET_FAR_EL1());
     printf_func("SPSR_EL1:         0x%x\n", GET_SPSR_EL1());
     printf_func("MPIDR_EL1:        0x%x\n", GET_MPIDR());

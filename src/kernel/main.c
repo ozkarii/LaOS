@@ -29,7 +29,9 @@ const char* INITIAL_RAMFS_DIRECTORIES[] = {
 };
 
 
-void console_loop_task(void) {
+void console_loop_task(void* arg) {
+  (void)arg;
+
   console_loop("#");
 }
 
@@ -174,7 +176,7 @@ int c_entry_secondary_core(void) {
 
   switch (cpu_id) {
   case 1:
-    sched_create_kernel_task(console_loop_task, NULL);
+    //sched_create_kernel_task(console_loop_task, NULL);
     break;
   case 2:
     break;
