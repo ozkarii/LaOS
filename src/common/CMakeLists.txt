@@ -21,4 +21,8 @@ target_link_options(common INTERFACE
   -nostartfiles
 )
 
+target_include_directories(common INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 add_library(LaOS::common ALIAS common)
