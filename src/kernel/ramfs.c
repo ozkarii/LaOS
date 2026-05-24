@@ -1,3 +1,6 @@
+#include "fcntl.h"
+
+#include "ramfs.h"
 #include "string.h"
 #include "vfs.h"
 
@@ -29,7 +32,7 @@ typedef struct RamFS {
 } RamFS;
 
 
-static void* ramfs_open(void *fs_data, const char *path, unsigned mode);
+static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode);
 static size_t ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
 static size_t ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
 static int ramfs_close(void *fs_data, void *file);
@@ -180,11 +183,12 @@ static RamFSHandle* allocate_handle(RamFS* fs, RamFSFile* file) {
   return NULL;
 }
 
-static void* ramfs_open(void *fs_data, const char *path, unsigned mode) {
+static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode) {
   RamFS *fs = (RamFS*)fs_data;
   RamFSFile *file = find_file(fs, path);
+  (void)mode; // Unused for now, since we don't implement permissions
 
-  if ((file == NULL) && (mode & MODE_CREATE)) {
+  if ((file == NULL) && (flags & O_CREAT)) {
     file = create_file(fs, path, false);
   }
   if (file == NULL) {

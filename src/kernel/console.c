@@ -102,7 +102,7 @@ void command_ls(char** argv, size_t argc) {
     return;
   }
 
-  VFSFileDescriptor* fd = vfs_open(temp, MODE_READ);
+  VFSFileDescriptor* fd = vfs_open(temp, O_RDONLY, 0);
   if (fd == NULL) {
     k_printf("vfs_open: failed to open path %s\n", temp);
     return;
@@ -125,7 +125,7 @@ void command_touch(char** argv, size_t argc) {
   static char temp[NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], temp);
 
-  VFSFileDescriptor* fd = vfs_open(temp, MODE_CREATE);
+  VFSFileDescriptor* fd = vfs_open(temp, O_CREAT, 0);
   if (fd == NULL) {
     k_printf("vfs_open: failed to create file %s\n", temp);
     return;

@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "stdio.h"
 #include "string.h"
+#include "fcntl.h"
 
 #include "io.h"
 #include "console.h"
@@ -96,7 +97,7 @@ int setup_ramfs(void) {
   k_printf(LOG_FS "Created initial RamFS directories\n");
 
 
-  VFSFileDescriptor* init_process_fd = vfs_open(INIT_BIN_PATH, MODE_CREATE | MODE_WRITE | MODE_READ);
+  VFSFileDescriptor* init_process_fd = vfs_open(INIT_BIN_PATH, O_CREAT | O_RDWR, 0);
   if (init_process_fd == NULL) {
     k_printf(LOG_FS "Failed to create file %s for init process\n", INIT_BIN_PATH);
     return -1;

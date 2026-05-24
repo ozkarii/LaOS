@@ -13,7 +13,7 @@
 
 
 typedef struct FileDescriptor {
-  fd_t fd;
+  int fd;
   VFSFileDescriptor* vfs_fd;
 } FileDescriptor;
 
@@ -36,6 +36,14 @@ typedef struct ProcessesContext {
 
 static ProcessesContext ctx;
 
+static inline Process* get_process_by_pid(pid_t pid) {
+  for (int i = 0; i < MAX_PROCESSES; i++) {
+    if (ctx.processes[i].allocated && ctx.processes[i].pid == pid) {
+      return &ctx.processes[i];
+    }
+  }
+  return NULL;
+}
 
 static Process* create_process(void) {
   Process *p = NULL;
@@ -124,7 +132,7 @@ pid_t process_create_init_process(void) {
     return -1;
   }
 
-  VFSFileDescriptor* init_bin_fd = vfs_open("/sbin/init", MODE_READ);
+  VFSFileDescriptor* init_bin_fd = vfs_open("/sbin/init", O_RDONLY, 0);
   if (init_bin_fd == NULL) {
     goto destroy_process;
   }
@@ -227,4 +235,41 @@ int process_unload_l2_table(pid_t pid) {
     }
   }
   return -1;
+}
+
+int process_open_file(pid_t pid, const char* path, int flags, int mode) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
+  }
+
+  VFSFileDescriptor* vfs_fd = vfs_open(path, flags, 0);
+  if (vfs_fd == NULL) {
+    return -1;
+  }
+
+  for (int i = 0; i < MAX_OPEN_FDS; i++) {
+    if (process->open_fds[i].vfs_fd == NULL) {
+      process->open_fds[i].fd = i;
+      process->open_fds[i].vfs_fd = vfs_fd;
+      return i;
+    }
+  }
+
+  // No space for new fd
+  vfs_close(vfs_fd);
+  return -1;
+}
+
+int process_write_file(pid_t pid, int fd, const void* buffer, size_t size) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
+  }
+
+  if (fd < 0 || fd >= MAX_OPEN_FDS || process->open_fds[fd].vfs_fd == NULL) {
+    return -1;
+  }
+
+  return vfs_write(process->open_fds[fd].vfs_fd, buffer, size);
 }

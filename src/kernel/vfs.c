@@ -145,7 +145,9 @@ int vfs_mount(const char *path, VFSInterface *fs, void *fs_data) {
 }
 
 
-VFSFileDescriptor* vfs_open(const char *path, unsigned mode) {
+VFSFileDescriptor* vfs_open(const char *path, int flags, mode_t mode) {
+  (void)mode; // Unused for now, since we don't implement permissions
+
   if (!is_valid_path(path)) {
     return NULL;
   }
@@ -172,7 +174,7 @@ VFSFileDescriptor* vfs_open(const char *path, unsigned mode) {
 
   void* file_handle = mount_point->fs->open(mount_point->fs_data,
                                        path_without_mount_point,
-                                       mode);
+                                       flags, mode);
   
   if (file_handle == NULL) {
     return NULL;

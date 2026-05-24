@@ -18,11 +18,12 @@ typedef struct SyscallContext {
 /**
  * Call only from syscall sync exception context.
  * Creates a kernel task to handle syscall with given args
- * Sets the user process that made the syscall as blocked,
- * but it must be yielded manually right after eret.
- * Handler task will wake it up once the syscall is handled.
+ * Sets the user process that made the syscall as blocked
+ * and yields right after returning from exception. This
+ * assumes that the timer IRQ will fire right after returning to EL0.
+ * Handler task will wake up the user process once the syscall is handled.
+ * Syscall return value is written to the `ret` pointer in user process address space.
  * Returns 0
- * Syscall return value is 
  */
 int syscall_handler(long number, long* ret, ...);
 

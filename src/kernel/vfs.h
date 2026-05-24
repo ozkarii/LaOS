@@ -5,15 +5,12 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#include "fcntl.h"
+
 #define NAME_MAX 64
 #define MAX_OPEN_FILES 64
 #define MAX_MOUNTS 16
 #define PATH_SEPARATOR '/'
-
-#define MODE_READ   0x1
-#define MODE_WRITE  0x2
-#define MODE_APPEND 0x4
-#define MODE_CREATE 0x8
 
 
 typedef struct VFSStat {
@@ -22,7 +19,7 @@ typedef struct VFSStat {
 } VFSStat;
 
 typedef struct VFSInterface {
-  void* (*open)(void* fs_data, const char* path, unsigned mode);
+  void* (*open)(void* fs_data, const char* path, int flags, mode_t mode);
   size_t (*read)(void* fs_data, void* file, void* buffer, size_t size);
   size_t (*write)(void* fs_data, void* file, const void* buffer, size_t size);
   int (*close)(void* fs_data, void* file);
@@ -48,7 +45,7 @@ typedef struct VFSFileDescriptor {
 } VFSFileDescriptor;
 
 int vfs_mount(const char* path, VFSInterface* fs, void* fs_data);
-VFSFileDescriptor* vfs_open(const char* path, unsigned mode);
+VFSFileDescriptor* vfs_open(const char* path, int flags, mode_t mode);
 size_t vfs_read(VFSFileDescriptor* fd, void* buffer, size_t size);
 size_t vfs_write(VFSFileDescriptor* fd, const void* buffer, size_t size);
 int vfs_close(VFSFileDescriptor* fd);
