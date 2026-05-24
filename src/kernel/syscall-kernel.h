@@ -8,7 +8,8 @@
 #include "syscall-common.h"
 
 typedef struct SyscallContext {
-  pid_t task_id;
+  pid_t pid;
+  task_id_t task_id;
   long args[MAX_SYSCALL_PARAMS];
   long* ret;
 } SyscallContext;

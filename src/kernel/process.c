@@ -217,3 +217,14 @@ int process_load_l2_table(pid_t pid) {
   }
   return -1;
 }
+
+int process_unload_l2_table(pid_t pid) {
+  for (int i = 0; i < MAX_PROCESSES; i++) {
+    Process* process = &ctx.processes[i];
+    if (process->pid == pid) {
+      mmu_set_user_l2_table(NULL);
+      return 0;
+    }
+  }
+  return -1;
+}

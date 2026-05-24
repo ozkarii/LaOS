@@ -16,6 +16,8 @@ typedef int32_t fd_t;
 pid_t process_create_init_process(void);
 void process_destroy(pid_t pid);
 pid_t process_clone(pid_t parent_pid);
+
 int process_load_l2_table(pid_t pid);
+int process_unload_l2_table(pid_t pid);
 
 #endif // PROCESS_H
