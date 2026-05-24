@@ -13,4 +13,8 @@ target_link_options(${TARGET}
     "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/link.ld"
 )
 
+target_include_directories(common INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 add_library(LaOS::common_user ALIAS user_common)
