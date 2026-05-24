@@ -176,7 +176,7 @@ int c_entry_secondary_core(void) {
 
   switch (cpu_id) {
   case 1:
-    //sched_create_kernel_task(console_loop_task, NULL);
+    sched_create_kernel_task(console_loop_task, NULL);
     break;
   case 2:
     break;

@@ -12,6 +12,12 @@
 
 typedef long (*syscall_handler_fn)(void*);
 
+static inline void end_syscall(SyscallContext *ctx) {
+  sched_unblock_task(ctx->task_id);
+  k_free(ctx);
+  sched_terminate_cpu_current_task();
+}
+
 syscall_handler_fn handle_exit(SyscallContext *ctx) {
   
 }
@@ -40,11 +46,7 @@ syscall_handler_fn handle_write(SyscallContext *ctx) {
 
   WRITE_AS_EL0_64(ctx->ret, size);
 
-  sched_unblock_task(ctx->task_id);
-
-  k_free(ctx);
-
-  while(1);
+  end_syscall(ctx);
 }
 
 static syscall_handler_fn syscall_handler_table[] = {

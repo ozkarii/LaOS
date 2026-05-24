@@ -28,6 +28,10 @@ task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param);
 task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, 
                                  uint32_t cpu_id, uintptr_t sp, pid_t pid);
 
+int sched_terminate_task(task_id_t task_id);
+
+void sched_terminate_cpu_current_task(void);
+
 // Call for each CPU
 int sched_start(void);
 
