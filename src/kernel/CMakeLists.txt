@@ -34,8 +34,6 @@ target_link_options(${TARGET}
 target_include_directories(${TARGET} 
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-  PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(${TARGET} 
