@@ -6,11 +6,15 @@ add_library(${TARGET}
     syscall-user.c
 )
 
-target_link_libraries(${TARGET} PUBLIC LaOS::common)
+target_link_libraries(${TARGET} PUBLIC LaOS::common LaOS::libc)
 
 target_link_options(${TARGET} 
   PUBLIC
     "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/link.ld"
+)
+
+set_property(TARGET ${TARGET} APPEND PROPERTY
+  LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/link.ld"
 )
 
 target_include_directories(common INTERFACE

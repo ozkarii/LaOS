@@ -9,9 +9,19 @@
 #include "log.h"
 #include "armv8-a.h"
 #include "vfs.h"
+#include "io.h"
 
+#ifdef ENABLE_SYSCALL_LOG
+#define LOG(...) \
+    do { \
+      k_printf(__VA_ARGS__); \
+    } while (0)
+#else
+#define LOG(...) \
+    do {} while (0);
+#endif
 
-typedef long (*syscall_handler_fn)(SyscallContext*);
+typedef void (*syscall_handler_fn)(SyscallContext*);
 
 static inline void end_syscall_handler(SyscallContext *ctx) {
   sched_unblock_task(ctx->task_id);
@@ -20,14 +30,14 @@ static inline void end_syscall_handler(SyscallContext *ctx) {
   __builtin_unreachable();
 }
 
-syscall_handler_fn handle_getpid(SyscallContext *ctx) {
+void handle_getpid(SyscallContext *ctx) {
   process_load_l2_table(ctx->pid);
   WRITE_AS_EL0_64(ctx->ret, ctx->pid);
   process_unload_l2_table(ctx->pid);
   end_syscall_handler(ctx);
 }
 
-syscall_handler_fn handle_write(SyscallContext *ctx) {
+void handle_write(SyscallContext *ctx) {
   int fd = ctx->args[0];
   char* user_buffer = (char*)ctx->args[1];
   size_t size = ctx->args[2];
@@ -58,7 +68,7 @@ syscall_handler_fn handle_write(SyscallContext *ctx) {
   end_syscall_handler(ctx);
 }
 
-syscall_handler_fn handle_open(SyscallContext *ctx) {
+void handle_open(SyscallContext *ctx) {
   char* user_path = (char*)ctx->args[0];
   int flags = ctx->args[1];
   int mode = ctx->args[2];
@@ -76,22 +86,64 @@ syscall_handler_fn handle_open(SyscallContext *ctx) {
   }
   tmp_path[sizeof(tmp_path) - 1] = '\0';
 
-  k_printf(LOG_SYSCALL "handle_open: pid=%d path=%s flags=%d mode=%d\n", ctx->pid, tmp_path, flags, mode);
-
-  if (process_open_file(ctx->pid, tmp_path, flags, mode) != 0) {
-    WRITE_AS_EL0_64(ctx->ret, -1);
-  } else {
-    WRITE_AS_EL0_64(ctx->ret, 0);
-  }
+  int ret = process_open_file(ctx->pid, tmp_path, flags, mode);
+  WRITE_AS_EL0_64(ctx->ret, ret);
 
   process_unload_l2_table(ctx->pid);
   end_syscall_handler(ctx);
 }
 
+void handle_read(SyscallContext *ctx) {
+  int fd = ctx->args[0];
+  char* user_buffer = (char*)ctx->args[1];
+  size_t size = ctx->args[2];
+
+  char* tmp_buffer = k_malloc(size);
+
+  process_load_l2_table(ctx->pid);
+  
+  ssize_t bytes_read = process_read_file(ctx->pid, fd, tmp_buffer, size);
+
+  if (bytes_read > 0) {
+    for (ssize_t i = 0; i < bytes_read; i++) {
+      WRITE_AS_EL0_8((user_buffer + i), tmp_buffer[i]);
+    }
+  }
+
+  WRITE_AS_EL0_64(ctx->ret, bytes_read);
+
+  process_unload_l2_table(ctx->pid);
+  end_syscall_handler(ctx);
+}
+
+void handle_close(SyscallContext *ctx) {
+  int fd = ctx->args[0];
+
+  process_load_l2_table(ctx->pid);
+  
+  int ret = process_close_file(ctx->pid, fd);
+  WRITE_AS_EL0_64(ctx->ret, ret);
+
+  process_unload_l2_table(ctx->pid);
+  end_syscall_handler(ctx);
+}
+
+void handle_exit(SyscallContext *ctx) {
+  int status = ctx->args[0];
+  
+  LOG(LOG_SYSCALL "Process %d exited with status %d\n", ctx->pid, status);
+  process_destroy(ctx->pid);
+
+  end_syscall_handler(ctx);
+}
+
 static syscall_handler_fn syscall_handler_table[] = {
   [SYS_GETPID] = handle_getpid,
+  [SYS_OPEN] = handle_open,
   [SYS_WRITE] = handle_write,
-  [SYS_OPEN] = handle_open
+  [SYS_READ] = handle_read,
+  [SYS_CLOSE] = handle_close,
+  [SYS_EXIT] = handle_exit
 };
 
 int syscall_handler(long number, long* ret, ...) {
@@ -112,8 +164,8 @@ int syscall_handler(long number, long* ret, ...) {
   // This is return value pointer owned by the user process
   ctx->ret = ret;
 
-  k_printf(LOG_SYSCALL "PID=%d task_id=%ld syscall_number=%ld, ret=%lx args=[%ld, %ld, %ld, %ld, %ld, %ld]\n", 
-           ctx->pid, ctx->task_id, number, ret, ctx->args[0], ctx->args[1], ctx->args[2], ctx->args[3], 
+  LOG(LOG_SYSCALL "PID=%d task_id=%ld syscall_number=%ld, ret=%lx args=[%ld, %ld, %ld, %ld, %ld, %ld]\n", 
+           ctx->pid, ctx->task_id, number, (uint64_t)ret, ctx->args[0], ctx->args[1], ctx->args[2], ctx->args[3], 
            ctx->args[4], ctx->args[5]);
 
   sched_create_kernel_task((void*)syscall_handler_table[number], ctx);

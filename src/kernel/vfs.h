@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#include "sys/types.h"
 #include "fcntl.h"
 
 #define NAME_MAX 64
@@ -20,8 +21,8 @@ typedef struct VFSStat {
 
 typedef struct VFSInterface {
   void* (*open)(void* fs_data, const char* path, int flags, mode_t mode);
-  size_t (*read)(void* fs_data, void* file, void* buffer, size_t size);
-  size_t (*write)(void* fs_data, void* file, const void* buffer, size_t size);
+  ssize_t (*read)(void* fs_data, void* file, void* buffer, size_t size);
+  ssize_t (*write)(void* fs_data, void* file, const void* buffer, size_t size);
   int (*close)(void* fs_data, void* file);
   int (*seek)(void* fs_data, void* file, size_t offset);
   int (*mkdir)(void* fs_data, const char* path);
@@ -46,8 +47,8 @@ typedef struct VFSFileDescriptor {
 
 int vfs_mount(const char* path, VFSInterface* fs, void* fs_data);
 VFSFileDescriptor* vfs_open(const char* path, int flags, mode_t mode);
-size_t vfs_read(VFSFileDescriptor* fd, void* buffer, size_t size);
-size_t vfs_write(VFSFileDescriptor* fd, const void* buffer, size_t size);
+ssize_t vfs_read(VFSFileDescriptor* fd, void* buffer, size_t size);
+ssize_t vfs_write(VFSFileDescriptor* fd, const void* buffer, size_t size);
 int vfs_close(VFSFileDescriptor* fd);
 int vfs_seek(VFSFileDescriptor* fd, size_t offset);
 int vfs_mkdir(const char* path);

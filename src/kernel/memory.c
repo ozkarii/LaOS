@@ -193,14 +193,16 @@ void k_free(void* ptr) {
 }
 
 
-void* allocate_user_memory_block(uint64_t* l2_table, bool executable) {
-  if (l2_table == NULL) {
-    return NULL;
+int allocate_user_memory_block(uint64_t* l2_table, bool executable,
+                               VirtualMemoryMapping* out_mapping) {
+  if (l2_table == NULL || out_mapping == NULL) {
+    return -1;
   }
 
+  // Allocate physical memory for the block
   void* phys_base = k_malloc(BLOCK_SIZE_L2);
   if (phys_base == NULL) {
-    return NULL;
+    return -1;
   }
 
   // Find a free L2 entry, start from 1 since 0 is reserved
@@ -217,38 +219,37 @@ void* allocate_user_memory_block(uint64_t* l2_table, bool executable) {
         desc |= UXN;  // Unprivileged Execute Never
       }
 
-      desc |= ((uintptr_t)phys_base & ~(BLOCK_SIZE_L2 - 1));  // Set physical base address
+      // Set physical base address to previously allocated block,
+      // aligned to block size
+      desc |= ((uintptr_t)phys_base & ~(BLOCK_SIZE_L2 - 1));
 
       l2_table[i] = desc;
+ 
+      out_mapping->va = (void*)(i * BLOCK_SIZE_L2);
+      out_mapping->pa = phys_base;
+      out_mapping->size = BLOCK_SIZE_L2;
+      out_mapping->executable = executable;
+      out_mapping->l2_entry = &l2_table[i];
 
-      return phys_base;
+      return 0;
     }
   }
 
-  return NULL;  // No free L2 entries
+  k_free(phys_base);
+
+  return -1;  // No free L2 entries
 }
 
-void free_user_memory_block(uint64_t* l2_table, void* block_ptr) {
-  if (l2_table == NULL || block_ptr == NULL) {
+void free_user_memory_block(uint64_t* l2_table, VirtualMemoryMapping* mapping) {
+   if (l2_table == NULL || mapping == NULL) {
     return;
   }
 
-  uintptr_t phys_addr = (uintptr_t)block_ptr;
+  // Invalidate L2 entry
+  *(mapping->l2_entry) = DESC_INVALID;
 
-  // Find the L2 entry corresponding to block_ptr
-  for (int i = 0; i < L2_PAGE_TABLE_ENTRIES; i++) {
-    uint64_t desc = l2_table[i];
-    if ((desc & VB_MASK) != DESC_INVALID) {
-      uintptr_t entry_addr = desc & OA_MASK;
-      if (entry_addr == (phys_addr & OA_MASK)) {
-        // Invalidate the L2 entry
-        l2_table[i] = DESC_INVALID;
-        break;
-      }
-    }
-  }
-
-  k_free(block_ptr);
+  // Free physical memory back to kernel
+  k_free(mapping->pa);
 }
 
 /**

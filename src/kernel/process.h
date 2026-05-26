@@ -3,12 +3,13 @@
 
 #include <stdint.h>
 
-#define TEXT_SECTION_VA 0x200000
-#define DATA_SECTION_VA 0x400000
+#include "sys/types.h"
+
 #define STACK_TOP_VA    0x600000
 
 #define MAX_PROCESSES 64
 #define MAX_OPEN_FDS 16
+#define MAX_VIRTUAL_MEMORY_MAPPINGS 16
 
 typedef int32_t pid_t;
 
@@ -20,6 +21,8 @@ int process_load_l2_table(pid_t pid);
 int process_unload_l2_table(pid_t pid);
 
 int process_open_file(pid_t pid, const char* path, int flags, int mode);
-int process_write_file(pid_t pid, int fd, const void* buffer, size_t size);
+ssize_t process_write_file(pid_t pid, int fd, const void* buffer, size_t size);
+ssize_t process_read_file(pid_t pid, int fd, void* buffer, size_t size);
+int process_close_file(pid_t pid, int fd);
 
 #endif // PROCESS_H

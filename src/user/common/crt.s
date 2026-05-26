@@ -4,5 +4,4 @@
 
 _start:
     bl main
-    // Make exit syscall with main return value
-    // svc x0...
+    bl _exit

@@ -3,11 +3,14 @@ ENTRY(_start)
 SECTIONS
 {
     /* Executable */
-    . = 0x1000; /* Start from offset of 4 KB */
+    . = 0x200000;
 
     .text : {
         *(.text .text.*)
     }
+
+    /* Data */
+    . = 0x400000;
 
     .rodata : {
         *(.rodata .rodata.*)

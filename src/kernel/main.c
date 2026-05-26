@@ -26,7 +26,8 @@
 #define INIT_BIN_PATH      "/sbin/init"
 
 const char* INITIAL_RAMFS_DIRECTORIES[] = {
-  "/sbin"
+  "/sbin",
+  "/dev"
 };
 
 
@@ -48,7 +49,7 @@ void task_sleep_demo(void) {
 
 
 static int copy_init_bin_from_memory_to_file(VFSFileDescriptor* fd, uint8_t* src) {
-  const size_t init_bin_size = (1024 * 8);
+  const size_t init_bin_size = (1024 * 512);
 
   size_t bytes_written = vfs_write(fd, src, init_bin_size);
 
@@ -111,6 +112,13 @@ int setup_ramfs(void) {
   }
 
   vfs_close(init_process_fd);
+
+  // Placeholder console file for console output, since we don't have a real device driver yet
+  VFSFileDescriptor* console_fd = vfs_open("/dev/console", O_CREAT, 0);
+  if (console_fd == NULL) {
+    k_printf(LOG_FS "Failed to create /dev/console in RamFS\n");
+    return -1;
+  }
 
   return 0;
 }

@@ -4,9 +4,9 @@
 #include "string.h"
 #include "vfs.h"
 
-#define RAMFS_MAX_FILES 32
-#define RAMFS_MAX_CHILDREN 8
-#define RAMFS_MAX_FILE_SIZE (1024 * 32)  // 32KB max file size
+#define RAMFS_MAX_FILES 16
+#define RAMFS_MAX_CHILDREN 4
+#define RAMFS_MAX_FILE_SIZE (1024 * 512)  // 512 kB max file size
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
 
 typedef struct RamFSFile RamFSFile;
@@ -33,8 +33,8 @@ typedef struct RamFS {
 
 
 static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode);
-static size_t ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
-static size_t ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
+static ssize_t ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
+static ssize_t ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
 static int ramfs_close(void *fs_data, void *file);
 static int ramfs_seek(void *fs_data, void *file, size_t offset);
 static int ramfs_mkdir(void* fs_data, const char* path);
@@ -196,14 +196,14 @@ static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode)
   }
 
   RamFSHandle *handle = allocate_handle(fs, file);
-  if (handle == NULL) {
+  if (handle == NULL && (flags & O_CREAT)) {
     destroy_file(file);
   }
 
   return handle;
 }
 
-static size_t ramfs_read(void *fs_data, void *handle, void *buffer, size_t size) {
+static ssize_t ramfs_read(void *fs_data, void *handle, void *buffer, size_t size) {
   (void)fs_data;
   RamFSHandle *h = (RamFSHandle*)handle;
   
@@ -216,7 +216,7 @@ static size_t ramfs_read(void *fs_data, void *handle, void *buffer, size_t size)
   return to_read;
 }
 
-static size_t ramfs_write(void *fs_data, void *handle, const void *buffer, size_t size) {
+static ssize_t ramfs_write(void *fs_data, void *handle, const void *buffer, size_t size) {
   (void)fs_data;
   RamFSHandle *h = (RamFSHandle*)handle;
   

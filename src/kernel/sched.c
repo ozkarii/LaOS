@@ -562,15 +562,16 @@ void sched_block_current_task(void) {
 
 void sched_unblock_task(task_id_t task_id) {
   Task* task = get_task_by_id(task_id);
-  if (task->state == TASK_STATE_BLOCKED) {
+  if (task != NULL && task->state == TASK_STATE_BLOCKED) {
     task->state = TASK_STATE_READY;
     task->sleep_until = 0UL;
   }
 }
 
 void sched_block_task(task_id_t task_id) {
-  Task* task = &sched_ctx.task_list[task_id];
-  if (task->state != TASK_STATE_BLOCKED) {
+  Task* task = get_task_by_id(task_id);
+  // Note: trying to block task that is in intital state might cause problems
+  if (task != NULL && (task->state == TASK_STATE_RUNNING || task->state == TASK_STATE_READY)) {
     task->state = TASK_STATE_BLOCKED;
   }
 }
