@@ -132,8 +132,26 @@ void handle_exit(SyscallContext *ctx) {
   int status = ctx->args[0];
   
   LOG(LOG_SYSCALL "Process %d exited with status %d\n", ctx->pid, status);
-  process_destroy(ctx->pid);
 
+  (void)status;
+  (void)process_destroy(ctx->pid);
+
+  end_syscall_handler(ctx);
+}
+
+void handle_execv(SyscallContext* ctx) {
+  process_load_l2_table(ctx->pid);
+  WRITE_AS_EL0_64(ctx->ret, -1);
+  process_unload_l2_table(ctx->pid);
+  end_syscall_handler(ctx);
+}
+
+
+void handle_fork(SyscallContext *ctx) {
+  pid_t child_pid = process_clone(ctx->pid);
+  process_load_l2_table(ctx->pid);
+  WRITE_AS_EL0_64(ctx->ret, child_pid);
+  process_unload_l2_table(ctx->pid);
   end_syscall_handler(ctx);
 }
 
@@ -143,7 +161,9 @@ static syscall_handler_fn syscall_handler_table[] = {
   [SYS_WRITE] = handle_write,
   [SYS_READ] = handle_read,
   [SYS_CLOSE] = handle_close,
-  [SYS_EXIT] = handle_exit
+  [SYS_EXIT] = handle_exit,
+  [SYS_FORK] = handle_fork,
+  [SYS_EXECV] = handle_execv
 };
 
 int syscall_handler(long number, long* ret, ...) {
@@ -167,11 +187,16 @@ int syscall_handler(long number, long* ret, ...) {
   LOG(LOG_SYSCALL "PID=%d task_id=%ld syscall_number=%ld, ret=%lx args=[%ld, %ld, %ld, %ld, %ld, %ld]\n", 
            ctx->pid, ctx->task_id, number, (uint64_t)ret, ctx->args[0], ctx->args[1], ctx->args[2], ctx->args[3], 
            ctx->args[4], ctx->args[5]);
-
-  sched_create_kernel_task((void*)syscall_handler_table[number], ctx);
   
-  // This will generate timer irq right after returning to EL0
-  sched_block_current_task();
+  // Some syscalls can be handled without creating a handler task
+  if (number == SYS_SLEEP) {
+    sched_sleep_cpu_current_task((unsigned int)ctx->args[0] * 1000 * 1000);
+    ctx->ret = 0;
+  } else {
+    sched_create_kernel_task((void*)syscall_handler_table[number], ctx);
+    // This will generate timer irq right after returning to EL0
+    sched_block_current_task();
+  }
 
   return 0;
 }

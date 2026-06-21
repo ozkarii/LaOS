@@ -37,9 +37,9 @@ pid_t fork(void) {
   return (pid_t)ret;
 }
 
-int execve(const char *path, char *const argv[], char *const envp[]) {
+int execv(const char *path, char *const argv[]) {
   long ret;
-  make_syscall(SYS_EXEC, &ret, path, argv, envp);
+  make_syscall(SYS_EXECV, &ret, path, argv);
   return (int)ret;
 }
 

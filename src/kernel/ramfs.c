@@ -4,7 +4,7 @@
 #include "string.h"
 #include "vfs.h"
 
-#define RAMFS_MAX_FILES 16
+#define RAMFS_MAX_FILES 8
 #define RAMFS_MAX_CHILDREN 4
 #define RAMFS_MAX_FILE_SIZE (1024 * 512)  // 512 kB max file size
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
@@ -120,10 +120,16 @@ static RamFSFile* create_file(RamFS *fs, const char *path, bool is_dir) {
 
   int child_slot_in_parent = -1;
   for (int i = 0; i < RAMFS_MAX_CHILDREN; i++) {
-    if (parent->children[i] == NULL) {
+    if (child_slot_in_parent == -1 && parent->children[i] == NULL) {
       child_slot_in_parent = i;
+      continue;
+    }
+    if (strcmp(parent->children[i]->path, path) == 0) {
+      child_slot_in_parent = -1;
+      break;
     }
   }
+
   if (child_slot_in_parent == -1) {
     return NULL;
   }
@@ -170,16 +176,28 @@ static int destroy_file(RamFSFile* file) {
   return 0;
 }
 
+// Allocate handle for file, returns NULL if no space
+// or if a handle already exists for the given file i.e. it is already open
 static RamFSHandle* allocate_handle(RamFS* fs, RamFSFile* file) {
-  RamFSHandle* handle = NULL;
+  RamFSHandle* handle_candidate = NULL;
   for (int i = 0; i < MAX_OPEN_FILES; i++) {
-    if (fs->handles[i].file == NULL) {
-      handle = &fs->handles[i];
-      handle->file = file;
-      handle->offset = 0;
-      return handle;
+    RamFSHandle* handle = &fs->handles[i];
+    if (handle_candidate == NULL && handle->file == NULL) {
+      handle_candidate = handle;
+      continue;
+    }
+    if (handle->file == file) {
+      goto file_already_open;
     }
   }
+
+  handle_candidate->file = file;
+  handle_candidate->offset = 0;
+
+  return handle_candidate;
+
+file_already_open:
+  // Todo: return error code
   return NULL;
 }
 
@@ -258,6 +276,8 @@ static int ramfs_mkdir(void* fs_data, const char* path) {
   
   if (!file) {
     file = create_file(fs, path, true);
+  } else {
+    return -1;
   }
 
   if (!file) {

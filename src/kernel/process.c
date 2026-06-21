@@ -24,7 +24,6 @@ typedef struct Process {
   FileDescriptor open_fds[MAX_OPEN_FDS];
   uint64_t* l2_table;
   VirtualMemoryMapping virtual_memory_mappings[MAX_VIRTUAL_MEMORY_MAPPINGS];
-  uintptr_t entry_point_va;
 } Process;
 
 typedef struct ProcessesContext {
@@ -34,12 +33,12 @@ typedef struct ProcessesContext {
 } ProcessesContext;
 
 
-static ProcessesContext ctx;
+static ProcessesContext processes_ctx;
 
 static inline Process* get_process_by_pid(pid_t pid) {
   for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (ctx.processes[i].allocated && ctx.processes[i].pid == pid) {
-      return &ctx.processes[i];
+    if (processes_ctx.processes[i].allocated && processes_ctx.processes[i].pid == pid) {
+      return &processes_ctx.processes[i];
     }
   }
   return NULL;
@@ -48,11 +47,11 @@ static inline Process* get_process_by_pid(pid_t pid) {
 static Process* create_process(void) {
   Process *p = NULL;
 
-  spinlock_acquire(&ctx.lock);
+  spinlock_acquire(&processes_ctx.lock);
 
   for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (!ctx.processes[i].allocated) {
-      p = &ctx.processes[i];
+    if (!processes_ctx.processes[i].allocated) {
+      p = &processes_ctx.processes[i];
       break;
     }
   }
@@ -66,80 +65,56 @@ static Process* create_process(void) {
   if (p->l2_table == NULL) {
     goto mmu_create_user_l2_table_fail;
   }
-
-  VirtualMemoryMapping code_block_mapping;
-  int ret = allocate_user_memory_block(p->l2_table, true, &code_block_mapping);
-  if (ret != 0) {
-    goto user_code_block_alloc_fail;
-  }
-  p->virtual_memory_mappings[0] = code_block_mapping;
-
-  VirtualMemoryMapping data_block_mapping;
-  ret = allocate_user_memory_block(p->l2_table, false, &data_block_mapping);
-  if (ret != 0) {
-    goto user_data_block_alloc_fail;
-  }
-  p->virtual_memory_mappings[1] = data_block_mapping;
-
   // First pid is 1
-  p->pid = ++ctx.pid_counter;
+  p->pid = ++processes_ctx.pid_counter;
 
-  spinlock_release(&ctx.lock);
+  spinlock_release(&processes_ctx.lock);
 
   return p;
 
-user_data_block_alloc_fail:
-  free_user_memory_block(p->l2_table, &code_block_mapping);
-  p->virtual_memory_mappings[0] = (VirtualMemoryMapping){0};
-user_code_block_alloc_fail:
-  mmu_free_user_l2_table(p->l2_table);
-  p->l2_table = NULL;
 mmu_create_user_l2_table_fail:
   p->allocated = false;
 no_space:
-  spinlock_release(&ctx.lock);
+  spinlock_release(&processes_ctx.lock);
   return NULL;
 }
 
-void process_destroy(pid_t pid) {
-  for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (!ctx.processes[i].allocated || ctx.processes[i].pid != pid) {
-      continue;
-    }
-
-    Process* process = &ctx.processes[i];
-
-    spinlock_acquire(&ctx.lock);
-    for (int j = 0; j < MAX_OPEN_FDS; j++) {
-      if (process->open_fds[j].vfs_fd != NULL) {
-        if (vfs_close(process->open_fds[j].vfs_fd) != 0) {
-          k_printf(LOG_KERNEL "Failed to close fd %d for process %d during destruction\n",
-                   process->open_fds[j].fd, pid);
-        }
-      }
-    }
-
-    for (int j = 0; j < MAX_VIRTUAL_MEMORY_MAPPINGS; j++) {
-      if (process->virtual_memory_mappings[j].size > 0) {
-        free_user_memory_block(process->l2_table, &process->virtual_memory_mappings[j]);
-      }
-    }
-
-    mmu_free_user_l2_table(process->l2_table);
-
-    sched_terminate_task(process->task_id);
-
-    memset(process->open_fds, 0, sizeof(process->open_fds));
-    memset(process->virtual_memory_mappings, 0, sizeof(process->virtual_memory_mappings));
-    memset(process, 0, sizeof(Process));
-
-    spinlock_release(&ctx.lock);
-    return;
+int process_destroy(pid_t pid) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
   }
+
+  spinlock_acquire(&processes_ctx.lock);
+  for (int j = 0; j < MAX_OPEN_FDS; j++) {
+    if (process->open_fds[j].vfs_fd != NULL) {
+      if (vfs_close(process->open_fds[j].vfs_fd) != 0) {
+        k_printf(LOG_KERNEL "Failed to close fd %d for process %d during destruction\n",
+                  process->open_fds[j].fd, pid);
+      }
+    }
+  }
+
+  for (int j = 0; j < MAX_VIRTUAL_MEMORY_MAPPINGS; j++) {
+    if (process->virtual_memory_mappings[j].pa != NULL) {
+      free_user_memory_block(&process->virtual_memory_mappings[j]);
+    }
+  }
+
+  mmu_free_user_l2_table(process->l2_table);
+
+  (void)sched_terminate_task(process->task_id);
+
+  memset(process->open_fds, 0, sizeof(process->open_fds));
+  memset(process->virtual_memory_mappings, 0, sizeof(process->virtual_memory_mappings));
+  memset(process, 0, sizeof(Process));
+
+  spinlock_release(&processes_ctx.lock);
+  return 0;
 }
 
 pid_t process_create_init_process(void) {
-  if (ctx.pid_counter != 0) {
+  if (processes_ctx.pid_counter != 0) {
     return -1;
   }
 
@@ -148,6 +123,17 @@ pid_t process_create_init_process(void) {
   if (p == NULL) {
     return -1;
   }
+
+  int ret = allocate_user_memory_block(p->l2_table, true, &p->virtual_memory_mappings[0]);
+  if (ret != 0) {
+    goto destroy_process;
+  }
+
+  ret = allocate_user_memory_block(p->l2_table, false, &p->virtual_memory_mappings[1]);
+  if (ret != 0) {
+    goto destroy_process;
+  }
+
 
   VFSFileDescriptor* init_bin_fd = vfs_open("/sbin/init", O_RDONLY, 0);
   if (init_bin_fd == NULL) {
@@ -183,9 +169,7 @@ pid_t process_create_init_process(void) {
     goto free_tmp_elf;
   }
 
-  p->entry_point_va = entry_offset;
-
-  task_id_t id = sched_create_user_task(p->entry_point_va, p->l2_table, GET_CPU_ID(),
+  task_id_t id = sched_create_user_task(entry_offset, p->l2_table, GET_CPU_ID(),
                                         STACK_TOP_VA, p->pid);
   if (id == NO_TASK) {
     goto free_tmp_elf;
@@ -199,20 +183,12 @@ pid_t process_create_init_process(void) {
 free_tmp_elf:
   k_free(tmp_elf);
 destroy_process:
-  process_destroy(p->pid);
+  (void)process_destroy(p->pid);
   return -1;
 }
 
 pid_t process_clone(pid_t parent_pid) {
-  Process* parent = NULL;
-
-
-  for (int i = 0; i < MAX_PROCESSES; i++) {
-    if (ctx.processes[i].allocated && ctx.processes[i].pid == parent_pid) {
-      parent = &ctx.processes[i];
-      break;
-    }
-  }
+  Process* parent = get_process_by_pid(parent_pid);
 
   if (parent == NULL) {
     return -1;
@@ -224,6 +200,8 @@ pid_t process_clone(pid_t parent_pid) {
     return -1;
   }
 
+  // Race here if parent gets destroyed here
+
   // Copy open fds
   for (int i = 0; i < MAX_OPEN_FDS; i++) {
     if (parent->open_fds[i].vfs_fd != NULL) {
@@ -231,33 +209,47 @@ pid_t process_clone(pid_t parent_pid) {
     }
   }
 
-  clone_process_page_table(child->l2_table, parent->l2_table);
+  for (int i = 0; i < MAX_VIRTUAL_MEMORY_MAPPINGS; i++) {
+    VirtualMemoryMapping* parent_mapping = &parent->virtual_memory_mappings[i];
+    if (parent_mapping->pa != NULL) {
+      int ret = allocate_user_memory_block(child->l2_table, parent_mapping->executable,
+                                           &child->virtual_memory_mappings[i]);
+      if (ret != 0) {
+        goto process_clone_error;
+      }
+      memcpy(child->virtual_memory_mappings[i].pa, parent_mapping->pa, parent_mapping->size);
+    }
+  }
 
-  // Inclomplete
+  task_id_t id = sched_clone_user_task(parent->task_id, child->l2_table, child->pid, 2);
+  if (id == NO_TASK) {
+    return -1;
+  }
+  child->task_id = id;
 
   return child->pid;
+
+process_clone_error:
+  (void)process_destroy(child->pid);
+  return -1;
 }
 
 int process_load_l2_table(pid_t pid) {
-  for (int i = 0; i < MAX_PROCESSES; i++) {
-    Process* process = &ctx.processes[i];
-    if (process->pid == pid) {
-      mmu_set_user_l2_table(process->l2_table);
-      return 0;
-    }
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
   }
-  return -1;
+  mmu_set_user_l2_table(process->l2_table);
+  return 0;
 }
 
 int process_unload_l2_table(pid_t pid) {
-  for (int i = 0; i < MAX_PROCESSES; i++) {
-    Process* process = &ctx.processes[i];
-    if (process->pid == pid) {
-      mmu_set_user_l2_table(NULL);
-      return 0;
-    }
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
   }
-  return -1;
+  mmu_set_user_l2_table(NULL);
+  return 0;
 }
 
 int process_open_file(pid_t pid, const char* path, int flags, int mode) {

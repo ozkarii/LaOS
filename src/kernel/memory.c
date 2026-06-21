@@ -160,6 +160,14 @@ void* k_malloc(size_t size) {
   return ptr;
 }
 
+void* k_zalloc(size_t size) {
+  void* ret = k_malloc(size);
+  if (ret != NULL) {
+    memset(ret, 0, size);
+  }
+  return ret;
+}
+
 void k_free(void* ptr) {
   if (ptr == NULL) {
     return;
@@ -200,7 +208,7 @@ int allocate_user_memory_block(uint64_t* l2_table, bool executable,
   }
 
   // Allocate physical memory for the block
-  void* phys_base = k_malloc(BLOCK_SIZE_L2);
+  void* phys_base = k_zalloc(BLOCK_SIZE_L2);
   if (phys_base == NULL) {
     return -1;
   }
@@ -240,8 +248,8 @@ int allocate_user_memory_block(uint64_t* l2_table, bool executable,
   return -1;  // No free L2 entries
 }
 
-void free_user_memory_block(uint64_t* l2_table, VirtualMemoryMapping* mapping) {
-   if (l2_table == NULL || mapping == NULL) {
+void free_user_memory_block(VirtualMemoryMapping* mapping) {
+   if (mapping == NULL) {
     return;
   }
 
@@ -250,15 +258,4 @@ void free_user_memory_block(uint64_t* l2_table, VirtualMemoryMapping* mapping) {
 
   // Free physical memory back to kernel
   k_free(mapping->pa);
-}
-
-/**
- * Clone a process's L2 page table (for fork-like operations).
- * This copies the L2 table structure, but both processes will
- * initially map the same physical memory (copy-on-write not implemented).
- */
-void clone_process_page_table(void* dest_page_table_base, void* src_page_table_base) {
-  if (dest_page_table_base != NULL && src_page_table_base != NULL) {
-    memcpy(dest_page_table_base, src_page_table_base, sizeof(uint64_t) * L2_PAGE_TABLE_ENTRIES);
-  }
 }

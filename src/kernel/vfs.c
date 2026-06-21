@@ -155,7 +155,7 @@ VFSFileDescriptor* vfs_open(const char *path, int flags, mode_t mode) {
   // Find free slot
   int free_fd_slot = -1;
   for (unsigned i = 0; i < MAX_OPEN_FILES; i++) {
-    if (!open_files[i].in_use) {
+    if (!open_files[i].allocated) {
       free_fd_slot = i;
       break;
     }
@@ -181,7 +181,7 @@ VFSFileDescriptor* vfs_open(const char *path, int flags, mode_t mode) {
   }
 
   VFSFileDescriptor* vfs_fd = &open_files[free_fd_slot];
-  vfs_fd->in_use = true;
+  vfs_fd->allocated = true;
   vfs_fd->mount = mount_point;
   vfs_fd->opaque_file_handle = file_handle;
   vfs_fd->mode = mode;
@@ -200,7 +200,7 @@ ssize_t vfs_write(VFSFileDescriptor* fd, const void *buffer, size_t size) {
 
 int vfs_close(VFSFileDescriptor* fd) {
   int res = fd->mount->fs->close(fd->mount->fs_data, fd->opaque_file_handle);
-  fd->in_use = false;
+  fd->allocated = false;
   fd->opaque_file_handle = NULL;
   return res;
 }

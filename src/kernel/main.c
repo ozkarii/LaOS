@@ -37,16 +37,6 @@ void console_loop_task(void* arg) {
   console_loop("#");
 }
 
-void task_sleep_demo(void) {
-  int counter = 0;
-  while (1) {
-    k_printf("task_sleep_demo: sleeping for 5 seconds, counter: %d\r\n", counter);
-    sched_sleep(1000000);
-    k_printf("task_sleep_demo: woke up, counter: %d\r\n", counter);
-    counter++;
-  }
-}
-
 
 static int copy_init_bin_from_memory_to_file(VFSFileDescriptor* fd, uint8_t* src) {
   const size_t init_bin_size = (1024 * 512);
@@ -119,6 +109,7 @@ int setup_ramfs(void) {
     k_printf(LOG_FS "Failed to create /dev/console in RamFS\n");
     return -1;
   }
+  vfs_close(console_fd);
 
   return 0;
 }

@@ -48,12 +48,14 @@ void sched_block_task(task_id_t task_id);
 void sched_yield(void);
 
 // Sleep for approximately the specified number of microseconds, blocking the current task
-void sched_sleep(uint64_t sleep_us);
+void sched_sleep_cpu_current_task(uint64_t sleep_us);
 
 // Get the ID of the task currently running on the calling CPU
 task_id_t sched_get_cpu_current_task_id(void);
 
 // -1 if no task with the given ID exists, -2 if the task is not a user task
 pid_t sched_get_pid_by_task_id(task_id_t task_id);
+
+task_id_t sched_clone_user_task(task_id_t src_task_id, uint64_t* l2_table, pid_t pid, uint32_t target_cpu);
 
 #endif /* SCHED_H */

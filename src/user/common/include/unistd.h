@@ -4,7 +4,7 @@
 /* process */
 void _exit(int status);
 pid_t fork(void);
-int execve(const char *path, char *const argv[], char *const envp[]);
+int execv(const char *pathname, char *const argv[]);
 pid_t getpid(void);
 
 /* scheduling / time */

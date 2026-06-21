@@ -39,7 +39,7 @@ typedef struct VFSMountPoint {
 } VFSMountPoint;
 
 typedef struct VFSFileDescriptor {
-  bool in_use;
+  bool allocated;
   VFSMountPoint* mount;
   void* opaque_file_handle;
   unsigned mode;

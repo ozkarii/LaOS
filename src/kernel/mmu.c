@@ -55,7 +55,7 @@ void mmu_init(void) {
 }
 
 uint64_t* mmu_create_user_l2_table(void) {
-  void* l2_table = k_malloc(L2_PAGE_TABLE_ENTRIES * sizeof(uint64_t));
+  void* l2_table = k_zalloc(L2_PAGE_TABLE_ENTRIES * sizeof(uint64_t));
   if (l2_table == NULL) {
     return NULL;
   }

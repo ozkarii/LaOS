@@ -471,18 +471,21 @@ void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_afte
     return;  // No need to switch context if task didn't change
   }
 
-  // Context switch needed, save the rest of the context
+  // Context switch needed, save the rest of the context (if current task is not terminated)
   // General purpose registers have been saved already to the stack
-  SAVE_ELR_EL1(current_task->ctx);
-  LOG(LOG_SCHED "saved elr_el1: 0x%lx\r\n", current_task->ctx.pc);
+  if (current_task->state != TASK_STATE_NONE) {
+    SAVE_ELR_EL1(current_task->ctx);
+    LOG(LOG_SCHED "saved elr_el1: 0x%lx\r\n", current_task->ctx.pc);
 
-  if (current_task->type == TASK_TYPE_USER) {
-    // User stack pointer needs to be saved separately for restoring user context later
-    SAVE_SP_EL0(current_task->ctx);
-    LOG(LOG_SCHED "saved sp_el0: 0x%lx\r\n", current_task->ctx.sp_el0);
+    if (current_task->type == TASK_TYPE_USER) {
+      // User stack pointer needs to be saved separately for restoring user context later
+      SAVE_SP_EL0(current_task->ctx);
+      LOG(LOG_SCHED "saved sp_el0: 0x%lx\r\n", current_task->ctx.sp_el0);
+    }
+
+    current_task->ctx.sp_el1 = sp_after_ctx_save;
   }
-
-  current_task->ctx.sp_el1 = sp_after_ctx_save;
+  
   set_cpu_current_task(next_task);
 
   switch_context_from_irq(next_task, int_id, cpu_id);
@@ -576,19 +579,23 @@ void sched_block_task(task_id_t task_id) {
   }
 }
 
-void sched_sleep(uint64_t sleep_us) {
+// Works only for task on caller CPU
+static inline uint64_t calculate_wakeup_ticks(uint64_t sleep_time_us) {
+  uint64_t current_ticks = GET_TIMER_COUNT();
+  uint64_t sleep_ticks = US_TO_CNTP_TVAL(sleep_time_us);
+  return current_ticks + sleep_ticks;
+}
+
+void sched_sleep_cpu_current_task(uint64_t sleep_us) {
   if (sleep_us == 0) {
     sched_yield();
     return;
   }
 
-  // Calculate wake-up time
-  uint64_t current_time_ticks = GET_TIMER_COUNT();
-  uint64_t sleep_ticks = US_TO_CNTP_TVAL(sleep_us);
   Task* current_task = get_cpu_current_task();
-  
+
   lock_sched_ctx();
-  current_task->sleep_until = current_time_ticks + sleep_ticks;
+  current_task->sleep_until = calculate_wakeup_ticks(sleep_us);
   current_task->state = TASK_STATE_BLOCKED;
   unlock_sched_ctx();
   sched_yield();
@@ -629,4 +636,39 @@ void sched_terminate_cpu_current_task(void) {
   while (1) {
     WAIT_FOR_INTERRUPT();
   }
+}
+
+static inline void copy_saved_context(Task* dest, Task* src) {
+  // Saved context from dest sp_el1 needs to be copied to src task stack
+  uintptr_t dest_stack_top = (uintptr_t)&dest->stack[TASK_STACK_SIZE];
+  const size_t offset = 31 * 8;
+  
+  uint64_t* context_in_dest_stack = (uint64_t*)(dest_stack_top - offset);
+  uint64_t* context_in_src_stack = (uint64_t*)(src->ctx.sp_el1);
+
+  // Copy general purpose registers x0-x30 (31 registers) that were saved to the stack during IRQ
+  for (int i = 0; i < 31; i++) {
+    context_in_dest_stack[i] = context_in_src_stack[i];
+  }
+
+  dest->ctx.sp_el1 = (uintptr_t)context_in_dest_stack;
+}
+
+task_id_t sched_clone_user_task(task_id_t src_task_id, uint64_t* l2_table, pid_t pid, uint32_t target_cpu) {
+  Task* src_task = get_task_by_id(src_task_id);
+  if (src_task == NULL || src_task->type != TASK_TYPE_USER) {
+    return NO_TASK;
+  }
+
+  task_id_t new_task_id = sched_create_user_task(src_task->ctx.pc, l2_table, target_cpu,
+                                                 src_task->ctx.sp_el0, pid);
+  if (new_task_id == NO_TASK) {
+    return NO_TASK;
+  }
+  Task* new_task = get_task_by_id(new_task_id);
+
+  new_task->state = TASK_STATE_READY;
+  copy_saved_context(new_task, src_task);
+
+  return new_task_id;
 }

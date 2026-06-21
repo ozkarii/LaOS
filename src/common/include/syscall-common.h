@@ -1,14 +1,11 @@
 #ifndef SYSCALL_COMMON_H
 #define SYSCALL_COMMON_H
 
-// Process
 #define SYS_EXIT    0
 #define SYS_FORK    1
-#define SYS_EXEC    2
+#define SYS_EXECV   2
 #define SYS_GETPID  3
-
-// Scheduling
-#define SYS_SLEEP   10
+#define SYS_SLEEP   4
 
 // Files
 #define SYS_OPEN    20
