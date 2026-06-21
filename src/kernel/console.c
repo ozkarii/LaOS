@@ -183,6 +183,36 @@ void command_cd(char** argv, size_t argc) {
   }
 }
 
+void command_cat(char** argv, size_t argc) {
+  if (argc < 2) {
+    k_printf("Usage: cat <filename>\n");
+    return;
+  }
+
+  static char temp[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], temp);
+
+  VFSFileDescriptor* fd = vfs_open(temp, O_RDONLY, 0);
+  if (fd == NULL) {
+    k_printf("cat: failed to open path %s\n", temp);
+    return;
+  }
+
+  char read_buf[256];
+  int bytes_read;
+  while ((bytes_read = vfs_read(fd, read_buf, sizeof(read_buf) - 1)) > 0) {
+    read_buf[bytes_read] = '\0';
+    k_printf("%s", read_buf);
+  }
+
+  if (bytes_read < 0) {
+      k_printf("cat: failed to read file %s\n", temp);
+  }
+
+  vfs_close(fd);
+  k_printf("\n");
+}
+
 static void exec_command(const char* command) {
   StringTokens s = tokenize_string(command, ' ');
   if (!strcmp(s.tokens[0], "ls")) {
@@ -199,6 +229,9 @@ static void exec_command(const char* command) {
   }
   else if (!strcmp(s.tokens[0], "cd")) {
     command_cd(s.tokens, s.count);
+  }
+  else if (!strcmp(s.tokens[0], "cat")) {
+    command_cat(s.tokens, s.count);
   }
 
   free_string_tokens(&s);
