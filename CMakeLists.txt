@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(LaOS VERSION 0.0.1 LANGUAGES C ASM)
+project(LaOS VERSION 0.0.1 LANGUAGES C CXX ASM)
 
-option(LAOS_TARGET_BOARD "The target board to build for (currently only 'qemu-raspi4b')" "qemu-raspi4b")
+option(BUILD_TESTS "Build host tests only" OFF)
 
-add_subdirectory(src)
+if (BUILD_TESTS)
+    add_subdirectory(tests)
+else()
+    add_subdirectory(src)
+endif()

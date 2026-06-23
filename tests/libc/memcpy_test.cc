@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../src/libc/include/string.h"
+#include "string.h"
 
 /* BASIC FUNCTIONALITY */
 TEST(MemcpyTest, CopiesBytesCorrectly) {
