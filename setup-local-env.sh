@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+
+# This script sets up personal local environment where
+# toolchain is installed in toolchain/ and qemu in qemu-install/
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -29,6 +32,3 @@ else
         echo "Warning: qemu-system-aarch64 not found."
     fi
 fi
-
-export LAUDES_OS_SETUP_DONE=1
-echo "LAUDES_OS_SETUP_DONE=1"

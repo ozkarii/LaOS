@@ -27,8 +27,33 @@ Intended for teaching myself OS implementation and 64-bit ARM architecture.
 ## How to build and run
 ### Requirements
 - AArch64 cross compiler (e.g. `aarch64-none-elf-gcc`) in PATH
-- AArch64 QEMU system emulator `qemu-system-aarch64` in PATH, tested with version 10.1.50
+- AArch64 QEMU system emulator `qemu-system-aarch64` in PATH, tested with versions 10 and 11
 - CMake 3.28+
+OR
+- Docker/podman
+
+#### Building the container image
+If using Podman without Docker CLI emulation, replace `docker` with `podman` in the commands.
+
+In repository root, run:
+```bash
+docker build -t laos-dev --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) --build-arg USER_NAME=$(id -un) .
+```
+
+#### Launching the container
+To get a shell in the container with your user and the repository mounted, run in repository root:
+```bash
+docker run --rm -it --userns=keep-id -v $(pwd):/home/$(id -un)/LaOS laos-dev bash
+```
+If using SELinux (such as Fedora), you may need to add `:z` to the volume mount option:
+```bash
+docker run --rm -it --userns=keep-id -v $(pwd):/home/$(id -un)/LaOS:z laos-dev bash
+```
+
+Then repository root will be at `/home/<username>/LaOS` in the container.
+```bash
+cd /home/$(id -un)/LaOS
+```
 
 ### Building
 In repository root, run:
