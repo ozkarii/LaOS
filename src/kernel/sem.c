@@ -74,7 +74,13 @@ int k_sem_try_wait(KSemaphore* sem) {
     return -1; // Would block
   }
   sem->value--;
+
+  task_id_t popped_poster = pop_task_from_queue(&sem->post_queue);
   spinlock_release(&sem->lock);
+
+  if (popped_poster != NO_TASK) {
+    sched_unblock_task(popped_poster);
+  }
 
   return 0;
 }
@@ -117,8 +123,15 @@ int k_sem_try_post(KSemaphore* sem) {
     spinlock_release(&sem->lock);
     return -1; // Would block
   }
+
   sem->value++;
+
+  task_id_t popped_waiter = pop_task_from_queue(&sem->wait_queue);
   spinlock_release(&sem->lock);
+
+  if (popped_waiter != NO_TASK) {
+    sched_unblock_task(popped_waiter);
+  }
 
   return 0;
 }
