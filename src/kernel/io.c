@@ -3,7 +3,7 @@
 #include "pl011.h"
 #include "stdio.h"
 #include "io.h"
-#include "io-buffer.h"
+#include "serial-buffer.h"
 #include "spinlock.h"
 
 static Spinlock k_puts_lock = {0};
@@ -23,7 +23,7 @@ void k_puts(const char* s) {
 }
 
 char k_getchar(void) {
-  return serial_buffer_getc();
+  return serial_buffer_get();
 }
 
 char* k_gets(char* s, int max_len) {

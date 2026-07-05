@@ -2,7 +2,7 @@ set(TARGET kernel)
 
 add_executable(${TARGET}
   gic.c
-  io-buffer.c
+  serial-buffer.c
   io.c
   pl011.c
   sched.c
