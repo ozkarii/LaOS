@@ -26,23 +26,6 @@ char k_getchar(void) {
   return serial_buffer_get();
 }
 
-char* k_gets(char* s, int max_len) {
-  char* tmp = s;
-  int count = 0;
-
-  while (count < max_len - 1) {
-    char c = k_getchar();
-    if (c == '\n' || c == '\r' || EOF) {
-      break;
-    }
-    *tmp++ = c;
-    count++;
-  }
-  
-  *tmp = '\0'; // Null-terminate the string
-  return s;
-}
-
 void k_printf(const char* format, ...) {
   char buffer[256];
   va_list args;
