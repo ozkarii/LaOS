@@ -56,13 +56,14 @@ cd /home/$(id -un)/LaOS
 ```
 
 ### Building
-In repository root, run:
+Inside the container or host with the required tools installed, in repository root, run:
 ```bash
 cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/aarch64-toolchain.cmake
 cmake --build build
 ```
 
 ### Running
+Launch QEMU with the built kernel:
 ```bash
 ./run.sh
 ```
