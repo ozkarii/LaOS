@@ -21,6 +21,8 @@ typedef struct KSemaphore {
   Spinlock lock;
 } KSemaphore;
 
+#define K_SEM_INIT(initial_value, max_value) {initial_value, max_value, {0}, {0}, {0, false}}
+#define K_SEM_INIT_IRQ_SAFE(initial_value, max_value) {initial_value, max_value, {0}, {0}, {0, true}}
 
 int k_sem_init(KSemaphore* sem, uint64_t initial_value, uint64_t max_value);
 int k_sem_wait(KSemaphore* sem);
