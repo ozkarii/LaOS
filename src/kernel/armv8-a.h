@@ -123,6 +123,11 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 
 #define EL1_PHY_TIM_IRQ 30u
 
+#define DAIF_MASK 0xF
+
+#define SET_DAIF(daif_val) \
+    asm volatile ("msr daif, %0" : : "r"(daif_val) : "memory")
+
 #define UNMASK_IRQ() \
     asm volatile ("msr daifclr, #2" ::: "memory")
 
@@ -185,7 +190,7 @@ static inline void cpu_dump_registers(void (*printf_func)(const char* format, ..
                 printf_func("ELR_EL1:          0x%lx (decode: aarch64-none-elf-addr2line -e build/src/kernel/kernel 0x%lx )\n", GET_ELR_EL1(), GET_ELR_EL1());
     printf_func("FAR_EL1:          0x%lx\n", GET_FAR_EL1());
     printf_func("SPSR_EL1:         0x%x\n", GET_SPSR_EL1());
-    printf_func("MPIDR_EL1:        0x%x\n", GET_MPIDR());
+    printf_func("MPIDR_EL1:        0x%x (CPU %d)\n", GET_MPIDR(), GET_MPIDR() & 0xFF);
     printf_func("SCTLR_EL1:        0x%lx\n", GET_SCTLR_EL1());
     printf_func("VBAR_EL1:         0x%lx\n", GET_VBAR_EL1());
     printf_func("MAIR_EL1:         0x%lx\n", GET_MAIR_EL1());
