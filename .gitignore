@@ -1,13 +1,7 @@
-toolchain/**
-.vscode/**
-*.o
-*.elf
-*.a
-*.bin
+build*/
 
-build/
+.vscode/
 
-tests/build
-
+toolchain/
 qemu/
 qemu-install/
