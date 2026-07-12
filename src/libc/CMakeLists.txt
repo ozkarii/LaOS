@@ -8,6 +8,7 @@ add_library(${TARGET}
   strcpy.c
   strlen.c
   vsnprintf.c
+  wrapper.c
 )
 
 target_include_directories(${TARGET} 

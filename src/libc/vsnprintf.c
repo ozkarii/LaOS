@@ -154,7 +154,7 @@ static int ulong_to_str(unsigned long val, char* buf, int base) {
     return len;
 }
 
-int vsnprintf(char* buf, size_t size, const char* format, va_list args) {
+int vsnprintf_impl(char* buf, size_t size, const char* format, va_list args) {
     if (!buf || size == 0) return 0;
 
     char* p = buf;

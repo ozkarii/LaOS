@@ -1,12 +1,15 @@
 #include <gtest/gtest.h>
-#include "string.h"
+
+extern "C" {
+#include "libc-impl.h"
+}
 
 /* CORE FUNCTIONALITY TESTS */
 TEST(SnprintfTest, CopiesBytesCorrectly) {
     char src[] = "hello";
     char dest[6] = {0};
 
-    snprintf(dest, sizeof(dest), "%s\n", src);
+    snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     for (int i = 0; i < 6; ++i) {
         EXPECT_EQ(dest[i], src[i]);
@@ -17,7 +20,7 @@ TEST(SnprintfTest, FormatsIntegerCorrectly) {
     char dest[50] = {};
     int n = 100;
 
-    int written = snprintf(dest, sizeof(dest), "Number: %d\n", n);
+    int written = snprintf_impl(dest, sizeof(dest), "Number: %d\n", n);
 
     const char* expected = "Number: 100\n";
 
@@ -28,7 +31,7 @@ TEST(SnprintfTest, FormatsIntegerCorrectly) {
 TEST(SnprintfTest, FormatsStringWithNewline) {
     char dest[20] = {};
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", "test");
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", "test");
 
     EXPECT_EQ(written, 5);
     EXPECT_STREQ(dest, "test\n");
@@ -37,7 +40,7 @@ TEST(SnprintfTest, FormatsStringWithNewline) {
 TEST(SnprintfTest, HandlesEmptyFormatString) {
     char dest[10] = {};
 
-    int written = snprintf(dest, sizeof(dest), "");
+    int written = snprintf_impl(dest, sizeof(dest), "");
 
     EXPECT_EQ(written, 0);
     EXPECT_EQ(dest[0], '\0');
@@ -48,7 +51,7 @@ TEST(SnprintfTest, CopyEmptyString) {
     char src[] = "";
     char dest[10] = {};
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", src);
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     EXPECT_EQ(written, 1); /* Just '\n' */
     EXPECT_STREQ(dest, "\n");
@@ -58,7 +61,7 @@ TEST(SnprintfTest, WritesNullTerminatorOnExactFit) {
     char src[] = "hello";
     char dest[7] = {}; /* "hello\n" + '\0' */
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", src);
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     EXPECT_STREQ(dest, "hello\n");
     EXPECT_EQ(written, 6);
@@ -68,7 +71,7 @@ TEST(SnprintfTest, OverwritesDestination) {
     char src[] = "hello world!";
     char dest[10] = {};  /* Bufferr too small for full output */
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", src);
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     EXPECT_EQ(written, 13);
 }
@@ -78,7 +81,7 @@ TEST(SnprintfTest, DoesNotWriteBeyondBuffer) {
     char dest[20];
     memset(dest, 'X', sizeof(dest));
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", src);
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     EXPECT_EQ(written, 13);
     EXPECT_EQ(dest[13], '\0');
@@ -94,7 +97,7 @@ TEST(SnprintfTest, HandlesMultipleFormatSpecifiers) {
     const char* name = "Alice";
     int age = 30;
 
-    int written = snprintf(dest, sizeof(dest), "Name: %s, Age: %d\n", name, age);
+    int written = snprintf_impl(dest, sizeof(dest), "Name: %s, Age: %d\n", name, age);
 
     const char* expected = "Name: Alice, Age: 30\n";
 
@@ -106,7 +109,7 @@ TEST(SnprintfTest, HandlesPercentLiteral) {
     char dest[50] = {};
     const char* src = "%%";
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", src);
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     const char* expected = "%%\n";
 
@@ -117,7 +120,7 @@ TEST(SnprintfTest, HandlesPercentLiteral) {
 TEST(SnprintfTest, HandlesEscapeCharactersInFormat) {
     char dest[50] = {};
 
-    int written = snprintf(dest, sizeof(dest), "Line1\nLine2\tTabbed\rCarriage");
+    int written = snprintf_impl(dest, sizeof(dest), "Line1\nLine2\tTabbed\rCarriage");
 
     const char* expected = "Line1\nLine2\tTabbed\rCarriage";
 
@@ -133,7 +136,7 @@ TEST(SnprintfTest, HandlesLongInputString) {
     memset(src, 'X', sizeof(src));
     src[999] = '\0';
 
-    int written = snprintf(dest, sizeof(dest), "%s\n", src);
+    int written = snprintf_impl(dest, sizeof(dest), "%s\n", src);
 
     EXPECT_EQ(written, 1000); /* 999 'X' + '\n' */
     EXPECT_EQ(dest[0], 'X');
@@ -145,7 +148,7 @@ TEST(SnprintfTest, HandlesLongInputString) {
 TEST(SnprintfTest, HandlesNullFormatString) {
     char dest[10] = {};
 
-    int written = snprintf(dest, sizeof(dest), NULL);
+    int written = snprintf_impl(dest, sizeof(dest), nullptr);
 
     EXPECT_EQ(written, -1);
 }

@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
-#include "string.h"
+
+extern "C" {
+#include "libc-impl.h"
+}
 
 /* BASIC FUNCTIONALITY */
 TEST(MemcpyTest, CopiesBytesCorrectly) {
@@ -7,7 +10,7 @@ TEST(MemcpyTest, CopiesBytesCorrectly) {
     char dest[6] = {0};
 
     /* Copy hello + \0 */
-    memcpy(dest, src, sizeof(src));
+    memcpy_impl(dest, src, sizeof(src));
 
     EXPECT_STREQ(dest, src);
 }
@@ -17,7 +20,7 @@ TEST(MemcpyTest, CopiesPartialBuffer) {
     char dest[10] = "xyz"; /* buffer size big enough */
 
     /* Copies only 'abc' */
-    memcpy(dest + 3, src, 4);
+    memcpy_impl(dest + 3, src, 4);
 
     EXPECT_STREQ(dest, "xyz-abc");
 }
@@ -29,7 +32,7 @@ TEST(MemcpyTest, HandlesLargeCopy) {
     memset(src, 'X', sizeof(src));
     src[999] = '\0';
 
-    memcpy(dest, src, sizeof(src));
+    memcpy_impl(dest, src, sizeof(src));
 
     EXPECT_EQ(dest[999], '\0');
 
@@ -40,7 +43,7 @@ TEST(MemcpyTest, WorksWithBinaryData) {
     unsigned char src[] = {0x00, 0x01, 0xFF, 0x42, 0x00};
     unsigned char dest[5] = {};
 
-    memcpy(dest, src, sizeof(src));
+    memcpy_impl(dest, src, sizeof(src));
 
 
     for (size_t i = 0; i < sizeof(src); ++i) {
@@ -59,7 +62,7 @@ TEST(MemcpyTest, WorksWithStructCopy) {
     MyStruct original = {42, 3.14, "Test"};
     MyStruct copy;
 
-    memcpy(&copy, &original, sizeof(MyStruct));
+    memcpy_impl(&copy, &original, sizeof(MyStruct));
 
     EXPECT_EQ(copy.id, original.id);
     EXPECT_DOUBLE_EQ(copy.value, original.value);
@@ -71,7 +74,7 @@ TEST(MemcpyTest, HandlesZeroLength) {
     char src[] = "abc";
     char dest[] = "xyz";
 
-    memcpy(dest, src, 0);
+    memcpy_impl(dest, src, 0);
 
     /* dest should remain unchanged */
     EXPECT_EQ(dest[0], 'x');
@@ -83,7 +86,7 @@ TEST(MemcpyTest, HandlesZeroLength) {
 TEST(MemcpyTest, HandlesNullSourcePointer) {
     char dest[] = "xyz";
 
-    memcpy(dest, NULL, 0);
+    memcpy_impl(dest, NULL, 0);
 
     /* dest should remain unchanged */
     EXPECT_EQ(dest[0], 'x');
@@ -95,7 +98,7 @@ TEST(MemcpyTest, HandlesNullDestinationPointer) {
     const char src[] = "abc";
     char dest[] = {'x', 'y', 'z'};
 
-    EXPECT_NO_THROW(memcpy(NULL, src, 0));
+    EXPECT_NO_THROW(memcpy_impl(NULL, src, 0));
 
     /* dest should remain unchanged */
     EXPECT_EQ(dest[0], 'x');
@@ -106,7 +109,7 @@ TEST(MemcpyTest, HandlesNullDestinationPointer) {
 TEST(MemcpyTest, HandlesBothPointersNull) {
     char dest[] = {'x', 'y', 'z'};
 
-    EXPECT_NO_THROW(memcpy(NULL, NULL, 0));
+    EXPECT_NO_THROW(memcpy_impl(NULL, NULL, 0));
 
     /* dest should remain unchanged */
     EXPECT_EQ(dest[0], 'x');
@@ -118,7 +121,7 @@ TEST(MemcpyTest, HandlesBothPointersNull) {
 TEST(MemcpyTest, HandlesSameSourceAndDestination) {
     char buffer[] = "abc";
 
-    void* result = memcpy(buffer, buffer, 3);
+    void* result = memcpy_impl(buffer, buffer, 3);
 
     EXPECT_STREQ(buffer, "abc");
 
@@ -130,7 +133,7 @@ TEST(MemcpyTest, DoesNotWriteOutOfBounds) {
     char src[] = "-abcdefg";
     char dest[8] = "xyz";
 
-    memcpy(dest + 3, src, 4);
+    memcpy_impl(dest + 3, src, 4);
 
     EXPECT_STREQ(dest, "xyz-abc");
 }

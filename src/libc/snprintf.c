@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include "stdio.h"
 
-int snprintf(char* buf, size_t size, const char* format, ...) {
+int snprintf_impl(char* buf, size_t size, const char* format, ...) {
     if (buf == NULL || format == NULL) {
         return -1;
     }
