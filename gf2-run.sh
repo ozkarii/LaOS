@@ -4,7 +4,7 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 pushd "$SCRIPT_DIR" > /dev/null
 
-./debug-run.sh &
+./run.sh -d &
 
 export GDB_CMD="gf2"
 ./attach-gdb.sh
