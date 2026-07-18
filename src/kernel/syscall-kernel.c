@@ -11,7 +11,9 @@
 #include "vfs.h"
 #include "io.h"
 
-#ifdef ENABLE_SYSCALL_LOG
+#define ENABLE_LOG 0
+
+#ifdef ENABLE_LOG
 #define LOG(...) \
     do { \
       k_printf(__VA_ARGS__); \
@@ -24,6 +26,7 @@
 typedef void (*syscall_handler_fn)(SyscallContext*);
 
 static inline void end_syscall_handler(SyscallContext *ctx) {
+  LOG(LOG_SYSCALL "Ending syscall handler for syscall number %ld for PID %d\n", ctx->args[0], ctx->pid);
   sched_unblock_task(ctx->task_id);
   k_free(ctx);
   sched_terminate_cpu_current_task();

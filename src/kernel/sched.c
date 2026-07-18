@@ -40,6 +40,7 @@
       "br %2\n" \
       : \
       : "r" (task_ctx.sp_el1), "r" (param), "r" (task_ctx.pc) \
+      : "x0", "memory" \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -76,6 +77,7 @@
       "eret\n" \
       : \
       : "r" (task_ctx.sp_el1), "r" (task_ctx.pc), "r" (task_ctx.sp_el0) \
+      : "x0", "memory" \
     ); \
     __builtin_unreachable(); \
   } while (0)
@@ -177,11 +179,12 @@
   } while (0)
 
 typedef enum {
-  TASK_STATE_NONE, // Not allocated or terminated
+  TASK_STATE_NONE, // Not allocated
   TASK_STATE_READY,
   TASK_STATE_RUNNING,
   TASK_STATE_BLOCKED,
   TASK_STATE_INITIAL, // Ready but never run before
+  TASK_STATE_TERMINATED
 } TaskState;
 
 typedef struct TaskContext {
@@ -234,16 +237,7 @@ static inline void unlock_sched_ctx(void) {
   spinlock_release(&sched_ctx.lock);
 }
 
-static Task* allocate_task(void) {
-  for (uint32_t i = 0; i < MAX_TASKS; i++) {
-    if (sched_ctx.task_list[i].state == TASK_STATE_NONE) {
-      return &sched_ctx.task_list[i];
-    }
-  }
-  return NULL;
-}
-
-static int free_task(Task* task) {
+static int clear_task(Task* task) {
   if (task == NULL) {
     return -1;
   }
@@ -257,7 +251,22 @@ static int free_task(Task* task) {
   return 0;
 }
 
-// TODO: create interface with fn ptrs
+static Task* allocate_task(void) {
+  for (uint32_t i = 0; i < MAX_TASKS; i++) {
+    Task *task = &sched_ctx.task_list[i];
+    if (task->state == TASK_STATE_TERMINATED) {
+      clear_task(task);
+      return task;
+    }
+    if (task->state == TASK_STATE_NONE) {
+      // Already initialized
+      return task;
+    }
+  }
+  return NULL;
+}
+
+
 static inline void stop_timer(void) {
   DISABLE_PHYS_TIMER();
 }
@@ -271,7 +280,7 @@ static inline void trigger_timer_irq(void) {
   SET_PHYS_TIMER_VALUE(0);
 }
 
-__attribute__((unused))
+__attribute__((noinline))
 void idle_task(void) {
   while (1) {
     WAIT_FOR_INTERRUPT();
@@ -400,6 +409,7 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
 
 void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
   memset(&sched_ctx, 0, sizeof(SchedContext));
+  sched_ctx.lock.used_from_irq = true;
   sched_ctx.time_slice_cntp_tval = US_TO_CNTP_TVAL(time_slice_us);
   sched_ctx.end_irq_callback = end_irq_callback;
   create_idle_tasks();
@@ -450,32 +460,35 @@ static void wake_up_tasks() {
 
 // Will lock sched_ctx, but won't unlock in case of context switch
 void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_after_ctx_save) {
-  lock_sched_ctx();
   stop_timer();
-  wake_up_tasks();
-
+  
   Task* current_task = get_cpu_current_task();
+  
+  lock_sched_ctx();
 
   if (current_task->state == TASK_STATE_RUNNING) {
     current_task->state = TASK_STATE_READY;
   }
 
   Task* next_task = determine_cpu_next_task();
-  LOG(LOG_SCHED "switch CPU%d: %ld -> %ld\r\n",
-           cpu_id, current_task->id, next_task->id);
 
-  if (next_task == get_cpu_current_task()) {
+  wake_up_tasks();
+
+  if (next_task == current_task) {
     start_timer();
     current_task->state = TASK_STATE_RUNNING;
     unlock_sched_ctx();
     return;  // No need to switch context if task didn't change
   }
 
+  LOG(LOG_SCHED "switch CPU%d: %ld(%d) -> %ld(%d)\r\n",
+          cpu_id, current_task->id, current_task->type, next_task->id, next_task->type);
+
   // Context switch needed, save the rest of the context (if current task is not terminated)
   // General purpose registers have been saved already to the stack
-  if (current_task->state != TASK_STATE_NONE) {
+  if (current_task->state != TASK_STATE_TERMINATED) {
     SAVE_ELR_EL1(current_task->ctx);
-    LOG(LOG_SCHED "saved elr_el1: 0x%lx\r\n", current_task->ctx.pc);
+    LOG(LOG_SCHED "CPU%d saved elr_el1: 0x%lx\r\n", cpu_id, current_task->ctx.pc);
 
     if (current_task->type == TASK_TYPE_USER) {
       // User stack pointer needs to be saved separately for restoring user context later
@@ -520,6 +533,9 @@ task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param) {
   new_task->cpu_id = GET_CPU_ID();
   unlock_sched_ctx();
 
+  LOG(LOG_SCHED "Created kernel task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d\r\n",
+      new_task->id, new_task->ctx.pc, new_task->ctx.sp_el1, new_task->cpu_id);
+
   return new_task->id;
 }
 
@@ -543,7 +559,7 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table,
   new_task->id = (task_id_t)sched_ctx.total_tasks_created;
   new_task->ctx.sp_el0 = sp;
   // this will be used when storing/restoring context
-  new_task->ctx.sp_el1 = 0;
+  new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
   new_task->ctx.pc = entry_point_va;
   new_task->state = TASK_STATE_INITIAL;
   new_task->sleep_until = 0;
@@ -552,6 +568,9 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table,
   new_task->cpu_id = cpu_id;
   new_task->pid = pid;
   unlock_sched_ctx();
+
+  LOG(LOG_SCHED "Created user task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d, pid=%d\r\n",
+      new_task->id, new_task->ctx.pc, new_task->ctx.sp_el0, new_task->cpu_id, new_task->pid);
 
   return new_task->id;
 }
@@ -564,19 +583,23 @@ void sched_block_current_task(void) {
 }
 
 void sched_unblock_task(task_id_t task_id) {
+  lock_sched_ctx();
   Task* task = get_task_by_id(task_id);
   if (task != NULL && task->state == TASK_STATE_BLOCKED) {
     task->state = TASK_STATE_READY;
     task->sleep_until = 0UL;
   }
+  unlock_sched_ctx();
 }
 
 void sched_block_task(task_id_t task_id) {
+  lock_sched_ctx();
   Task* task = get_task_by_id(task_id);
   // Note: trying to block task that is in intital state might cause problems
   if (task != NULL && (task->state == TASK_STATE_RUNNING || task->state == TASK_STATE_READY)) {
     task->state = TASK_STATE_BLOCKED;
   }
+  lock_sched_ctx();
 }
 
 // Works only for task on caller CPU
@@ -620,7 +643,7 @@ int sched_terminate_task(task_id_t task_id) {
     unlock_sched_ctx();
     return -1;
   }
-  free_task(task);
+  task->state = TASK_STATE_TERMINATED;
   sched_ctx.current_task_count--;
   unlock_sched_ctx();
 
@@ -667,8 +690,8 @@ task_id_t sched_clone_user_task(task_id_t src_task_id, uint64_t* l2_table, pid_t
   }
   Task* new_task = get_task_by_id(new_task_id);
 
-  new_task->state = TASK_STATE_READY;
   copy_saved_context(new_task, src_task);
+  new_task->state = TASK_STATE_READY;
 
   return new_task_id;
 }

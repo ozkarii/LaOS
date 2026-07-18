@@ -9,6 +9,7 @@ target_compile_options(common INTERFACE
   -march=armv8-a
   -mgeneral-regs-only
   -mno-outline-atomics
+  -Werror=implicit-function-declaration
 )
 
 set_target_properties(common PROPERTIES

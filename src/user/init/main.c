@@ -66,5 +66,5 @@ int main() {
   }
   */
 
-  return (int)0xbeef;
+  return 0;
 }
