@@ -4,9 +4,9 @@
 #include "io.h"
 #include "armv8-a.h"
 #include "gic.h"
-#include "pl011.h"
 #include "vfs.h"
 #include "memory.h"
+#include "process.h"
 
 #define WELCOME "Welcome to LaOS"
 #define LINE_MAX 256
@@ -91,24 +91,24 @@ static void resolve_relative_path(const char* cwd, const char* path, char* out) 
 
 void command_ls(char** argv, size_t argc) {
   static char readdir_buf[256];
-  static char temp[NAME_MAX] = {0};
+  static char abs_path[NAME_MAX] = {0};
 
   if (argc == 2) {
-    resolve_relative_path(cwd, argv[1], temp);
+    resolve_relative_path(cwd, argv[1], abs_path);
   } else if (argc == 1) {
-    strcpy(temp, cwd);
+    strcpy(abs_path, cwd);
   } else {
     k_printf("Usage: ls [ <dirname> ]\n");
     return;
   }
 
-  VFSFileDescriptor* fd = vfs_open(temp, O_RDONLY, 0);
+  VFSFileDescriptor* fd = vfs_open(abs_path, O_RDONLY, 0);
   if (fd == NULL) {
-    k_printf("vfs_open: failed to open path %s\n", temp);
+    k_printf("vfs_open: failed to open path %s\n", abs_path);
     return;
   }
   if (vfs_readdir(fd, readdir_buf, sizeof(readdir_buf)) != 0) {
-    k_printf("vfs_readdir: failed to read directory %s\n", temp);
+    k_printf("vfs_readdir: failed to read directory %s\n", abs_path);
     vfs_close(fd);
     return;
   }
@@ -122,12 +122,12 @@ void command_touch(char** argv, size_t argc) {
     return;
   }
 
-  static char temp[NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], temp);
+  static char abs_path[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], abs_path);
 
-  VFSFileDescriptor* fd = vfs_open(temp, O_CREAT, 0);
+  VFSFileDescriptor* fd = vfs_open(abs_path, O_CREAT, 0);
   if (fd == NULL) {
-    k_printf("vfs_open: failed to create file %s\n", temp);
+    k_printf("vfs_open: failed to create file %s\n", abs_path);
     return;
   }
   vfs_close(fd);
@@ -139,12 +139,12 @@ void command_mkdir(char** argv, size_t argc) {
     return;
   }
 
-  static char temp[NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], temp);
+  static char abs_path[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], abs_path);
 
-  int ret = vfs_mkdir(temp);
+  int ret = vfs_mkdir(abs_path);
   if (ret != 0) {
-    k_printf("vfs_mkdir: failed to create directory %s\n", temp);
+    k_printf("vfs_mkdir: failed to create directory %s\n", abs_path);
   }
 }
 
@@ -154,12 +154,12 @@ void command_rm(char** argv, size_t argc) {
     return;
   }
 
-  static char temp[NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], temp);
+  static char abs_path[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], abs_path);
 
-  int ret = vfs_remove(temp);
+  int ret = vfs_remove(abs_path);
   if (ret != 0) {
-    k_printf("vfs_remove: failed to remove %s\n", temp);
+    k_printf("vfs_remove: failed to remove %s\n", abs_path);
   }
 }
 
@@ -169,17 +169,17 @@ void command_cd(char** argv, size_t argc) {
     return;
   }
   
-  static char temp[NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], temp);
+  static char abs_path[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], abs_path);
 
   VFSStat stat = {0};
-  int ret = vfs_stat(temp, &stat);
+  int ret = vfs_stat(abs_path, &stat);
   if (ret != 0) {
-    k_printf("vfs_stat: failed to stat %s\n", temp);
+    k_printf("vfs_stat: failed to stat %s\n", abs_path);
     return;
   }
   if (stat.is_directory) {
-    strcpy(cwd, temp);
+    strcpy(cwd, abs_path);
   }
 }
 
@@ -189,12 +189,23 @@ void command_cat(char** argv, size_t argc) {
     return;
   }
 
-  static char temp[NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], temp);
+  static char abs_path[NAME_MAX] = {0};
+  resolve_relative_path(cwd, argv[1], abs_path);
 
-  VFSFileDescriptor* fd = vfs_open(temp, O_RDONLY, 0);
+  VFSStat stat = {0};
+  if (vfs_stat(abs_path, &stat) == -1) {
+    k_printf("vfs_stat: failed to stat %s\n", abs_path);
+    return;
+  }
+
+  if (stat.is_directory) {
+    k_printf("cat: %s: is a directory\n", abs_path);
+    return;
+  }
+
+  VFSFileDescriptor* fd = vfs_open(abs_path, O_RDONLY, 0);
   if (fd == NULL) {
-    k_printf("cat: failed to open path %s\n", temp);
+    k_printf("cat: failed to open path %s\n", abs_path);
     return;
   }
 
@@ -206,7 +217,7 @@ void command_cat(char** argv, size_t argc) {
   }
 
   if (bytes_read < 0) {
-      k_printf("cat: failed to read file %s\n", temp);
+    k_printf("cat: failed to read file %s\n", abs_path);
   }
 
   vfs_close(fd);
@@ -215,6 +226,11 @@ void command_cat(char** argv, size_t argc) {
 
 static void exec_command(const char* command) {
   StringTokens s = tokenize_string(command, ' ');
+  if (s.count == 0 || strlen(s.tokens[0]) == 0) {
+    free_string_tokens(&s);
+    return;
+  }
+
   if (!strcmp(s.tokens[0], "ls")) {
     command_ls(s.tokens, s.count);
   }
@@ -232,6 +248,9 @@ static void exec_command(const char* command) {
   }
   else if (!strcmp(s.tokens[0], "cat")) {
     command_cat(s.tokens, s.count);
+  }
+  else {
+    k_printf("Unknown command: %s\n", s.tokens[0]);
   }
 
   free_string_tokens(&s);
