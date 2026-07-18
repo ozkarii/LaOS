@@ -13,7 +13,7 @@
 
 #define ENABLE_LOG 0
 
-#ifdef ENABLE_LOG
+#if ENABLE_LOG
 #define LOG(...) \
     do { \
       k_printf(__VA_ARGS__); \
