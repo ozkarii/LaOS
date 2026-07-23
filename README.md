@@ -29,7 +29,10 @@ Intended for teaching myself OS implementation and 64-bit ARM architecture.
 - AArch64 cross compiler (e.g. `aarch64-none-elf-gcc`) in PATH
 - AArch64 QEMU system emulator `qemu-system-aarch64` in PATH, tested with versions 10 and 11
 - CMake 3.28+
+
 OR
+
+
 - Docker/podman
 
 #### Building the container image
@@ -101,3 +104,5 @@ Closed file /testfile, ret=0
 - `mkdir <path>` - Create directory
 - `rm <path>` - Remove file or directory
 - `cat <path>` - Print file contents to console
+
+Note: this shell runs in kernel mode, user-space shell is WIP
