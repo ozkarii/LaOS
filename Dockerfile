@@ -1,8 +1,10 @@
 FROM ubuntu:24.04
 
-RUN apt-get update && apt-get install -y \
-    python3 python3-venv python3-tomli meson build-essential && \
-    libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev git && \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+    python3 python3-venv python3-tomli meson build-essential \
+    libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev git \
     cmake nano iputils-ping sudo wget && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 

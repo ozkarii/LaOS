@@ -21,8 +21,8 @@ typedef struct SerialBuffer {
 } SerialBuffer;
 
 static SerialBuffer serial_buffer = {
-  .head = ATOMIC_VAR_INIT(0),
-  .tail = ATOMIC_VAR_INIT(0),
+  .head = 0,
+  .tail = 0,
   .buffer = {0},
   .buffer_sem = K_SEM_INIT_IRQ_SAFE(0, SERIAL_BUFFER_SIZE)
 };
