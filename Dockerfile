@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     python3 python3-venv python3-tomli meson build-essential \
     libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev git \
-    cmake nano iputils-ping sudo wget && \
+    cmake nano iputils-ping sudo wget gdb-multiarch && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-x86_64-aarch64-none-elf.tar.xz && \
