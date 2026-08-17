@@ -20,6 +20,7 @@ add_executable(${TARGET}
   elf-loader.c
   ramfs.c
   syscall-kernel.c
+  path.c
   el1_vectors.s
   el2_vectors.s
   el3_vectors.s

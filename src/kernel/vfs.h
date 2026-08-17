@@ -8,11 +8,10 @@
 #include "sys/types.h"
 #include "fcntl.h"
 
-#define NAME_MAX 64
+#include "path.h"
+
 #define MAX_OPEN_FILES 64
 #define MAX_MOUNTS 16
-#define PATH_SEPARATOR '/'
-
 
 typedef struct VFSStat {
   size_t size;
@@ -32,7 +31,7 @@ typedef struct VFSInterface {
 } VFSInterface;
 
 typedef struct VFSMountPoint {
-  char path[NAME_MAX];
+  char path[PATH_NAME_MAX];
   VFSInterface* fs;
   void* fs_data;
   bool active;
@@ -45,6 +44,13 @@ typedef struct VFSFileDescriptor {
   unsigned mode;
 } VFSFileDescriptor;
 
+typedef struct VFS {
+  bool initialized;
+  VFSMountPoint mounts[MAX_MOUNTS];
+  VFSFileDescriptor open_files[MAX_OPEN_FILES];
+} VFS;
+
+int vfs_init(VFS* vfs);
 int vfs_mount(const char* path, VFSInterface* fs, void* fs_data);
 VFSFileDescriptor* vfs_open(const char* path, int flags, mode_t mode);
 ssize_t vfs_read(VFSFileDescriptor* fd, void* buffer, size_t size);

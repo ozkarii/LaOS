@@ -18,7 +18,7 @@
 #define KEY_LEFT 0x44
 
 
-static char cwd[NAME_MAX] = "/";
+static char cwd[PATH_NAME_MAX] = "/";
 
 
 typedef struct StringTokens {
@@ -74,14 +74,14 @@ static void free_string_tokens(StringTokens* s) {
   s->count = 0;
 }
 
-// Make sure `out` is at least NAME_MAX in size
+// Make sure `out` is at least PATH_NAME_MAX in size
 static void resolve_relative_path(const char* cwd, const char* path, char* out) {
   if (path[0] != '/') {
     if (!strcmp(cwd, "/")) {
-      snprintf(out, NAME_MAX, "/%s", path);
+      snprintf(out, PATH_NAME_MAX, "/%s", path);
     }
     else {
-      snprintf(out, NAME_MAX, "%s/%s", cwd, path);
+      snprintf(out, PATH_NAME_MAX, "%s/%s", cwd, path);
     }
   }
   else {
@@ -91,7 +91,7 @@ static void resolve_relative_path(const char* cwd, const char* path, char* out) 
 
 void command_ls(char** argv, size_t argc) {
   static char readdir_buf[256];
-  static char abs_path[NAME_MAX] = {0};
+  static char abs_path[PATH_NAME_MAX] = {0};
 
   if (argc == 2) {
     resolve_relative_path(cwd, argv[1], abs_path);
@@ -122,7 +122,7 @@ void command_touch(char** argv, size_t argc) {
     return;
   }
 
-  static char abs_path[NAME_MAX] = {0};
+  static char abs_path[PATH_NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], abs_path);
 
   VFSFileDescriptor* fd = vfs_open(abs_path, O_CREAT, 0);
@@ -139,7 +139,7 @@ void command_mkdir(char** argv, size_t argc) {
     return;
   }
 
-  static char abs_path[NAME_MAX] = {0};
+  static char abs_path[PATH_NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], abs_path);
 
   int ret = vfs_mkdir(abs_path);
@@ -154,7 +154,7 @@ void command_rm(char** argv, size_t argc) {
     return;
   }
 
-  static char abs_path[NAME_MAX] = {0};
+  static char abs_path[PATH_NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], abs_path);
 
   int ret = vfs_remove(abs_path);
@@ -169,7 +169,7 @@ void command_cd(char** argv, size_t argc) {
     return;
   }
   
-  static char abs_path[NAME_MAX] = {0};
+  static char abs_path[PATH_NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], abs_path);
 
   VFSStat stat = {0};
@@ -189,7 +189,7 @@ void command_cat(char** argv, size_t argc) {
     return;
   }
 
-  static char abs_path[NAME_MAX] = {0};
+  static char abs_path[PATH_NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], abs_path);
 
   VFSStat stat = {0};

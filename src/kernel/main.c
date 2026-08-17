@@ -71,7 +71,10 @@ int setup_ramfs(void) {
   }
 
   VFSInterface* ramfs_if = ramfs_get_vfs_interface();
-  vfs_mount("/", ramfs_if, ramfs);
+  if (vfs_mount("/", ramfs_if, ramfs) != 0) {
+    k_printf(LOG_FS "Failed to mount RamFS at /\n");
+    return -1;
+  }
   k_printf(LOG_FS "Mounted RamFS at /\n");
 
   // Create initial directories
@@ -138,6 +141,12 @@ int c_entry() {
   UNMASK_ALL_INTERRUPTS();
 
   sched_init(100000, gicc_end_irq);
+
+  static VFS vfs;
+  if (vfs_init(&vfs) != 0) {
+    k_printf(LOG_KERNEL "Failed to initialize VFS, cannot proceed\n");
+    while (1);
+  }
 
   if (setup_ramfs() != 0) {
     k_printf(LOG_KERNEL "Failed to setup RamFS, cannot proceed\n");

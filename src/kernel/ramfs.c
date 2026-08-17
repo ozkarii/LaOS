@@ -12,7 +12,7 @@
 typedef struct RamFSFile RamFSFile;
 
 typedef struct RamFSFile {
-  char path[NAME_MAX];
+  char path[PATH_NAME_MAX];
   uint8_t data[RAMFS_MAX_FILE_SIZE];
   size_t size;
   bool is_directory;
@@ -103,7 +103,7 @@ static RamFSFile* find_parent(RamFS *fs, const char *path) {
   }
 
   // Build parent path
-  char parent_path[NAME_MAX];
+  char parent_path[PATH_NAME_MAX];
   size_t len = last_sep - path;
   memcpy(parent_path, path, len);
   parent_path[len] = '\0';
