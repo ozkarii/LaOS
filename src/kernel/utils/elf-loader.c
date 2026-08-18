@@ -1,6 +1,5 @@
 
 #include "elf-loader.h"
-#include "memory.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -45,7 +44,7 @@ typedef struct {
 } Elf64_Phdr;
 
 int elf_load_from_memory(const void* elf_data, size_t elf_size,
-                         void* exec_block, void* non_exec_block,
+                         void* out_exec_block, void* out_non_exec_block,
                          uint64_t* entry_offset) {
 	if (!elf_data || elf_size < sizeof(Elf64_Ehdr)) {
 		return -1;
@@ -67,7 +66,7 @@ int elf_load_from_memory(const void* elf_data, size_t elf_size,
     	}
 
 		bool executable = (phdr->flags & 0x1) != 0; // PF_X
-		void* dest = executable ? exec_block : non_exec_block;
+		void* dest = executable ? out_exec_block : out_non_exec_block;
 		if (!dest) {
       		return -1;
     	}

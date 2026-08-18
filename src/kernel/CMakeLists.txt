@@ -1,44 +1,43 @@
-set(TARGET kernel)
+add_subdirectory(fs)
+add_subdirectory(utils)
 
-add_executable(${TARGET}
-  gic.c
-  serial-buffer.c
-  io.c
-  pl011.c
-  sched.c
-  sem.c
-  sp804.c
-  spinlock.c
-  sys-timer.c
-  process.c
-  console.c
-  main.c
-  mmu.c
-  memory.c
-  vfs.c
-  isr.c
-  elf-loader.c
-  ramfs.c
-  syscall-kernel.c
-  path.c
-  el1_vectors.s
-  el2_vectors.s
-  el3_vectors.s
-  start.s
-)
+if (NOT BUILD_TESTS)
+  add_subdirectory(drivers)
+  add_subdirectory(memory)
+  add_subdirectory(platform)
+  add_subdirectory(system)
 
-target_link_options(${TARGET} 
-  PRIVATE
-    -T ${CMAKE_CURRENT_SOURCE_DIR}/link.ld
-)
+  set(TARGET kernel)
 
-target_include_directories(${TARGET} 
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
+  add_executable(${TARGET}
+    console.c
+    main.c
+    isr.c
+    el1_vectors.s
+    el2_vectors.s
+    el3_vectors.s
+    start.s
+  )
 
-target_link_libraries(${TARGET} 
-  PRIVATE
-    LaOS::common
-    LaOS::libc
-)
+  target_link_options(${TARGET} 
+    PRIVATE
+      -T ${CMAKE_CURRENT_SOURCE_DIR}/link.ld
+  )
+
+  target_include_directories(${TARGET} 
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+  target_link_libraries(${TARGET} 
+    PRIVATE
+      LaOS::common
+      LaOS::libc
+      LaOS::kernel::utils
+      LaOS::kernel::drivers
+      LaOS::kernel::system
+      LaOS::kernel::memory
+      LaOS::kernel::platform
+      LaOS::kernel::fs
+  )
+endif()

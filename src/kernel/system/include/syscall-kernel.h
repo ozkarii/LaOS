@@ -7,14 +7,6 @@
 #include "sem.h"
 #include "syscall-common.h"
 
-typedef struct SyscallContext {
-  pid_t pid;
-  task_id_t task_id;
-  long args[MAX_SYSCALL_PARAMS];
-  long* ret;
-} SyscallContext;
-
-
 /**
  * Call only from syscall sync exception context.
  * Creates a kernel task to handle syscall with given args

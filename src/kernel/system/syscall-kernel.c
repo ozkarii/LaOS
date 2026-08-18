@@ -23,6 +23,13 @@
     do {} while (0);
 #endif
 
+typedef struct SyscallContext {
+  pid_t pid;
+  task_id_t task_id;
+  long args[MAX_SYSCALL_PARAMS];
+  long* ret;
+} SyscallContext;
+
 typedef void (*syscall_handler_fn)(SyscallContext*);
 
 static inline void end_syscall_handler(SyscallContext *ctx) {
