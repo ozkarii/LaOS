@@ -16,12 +16,12 @@ Intended for teaching myself OS implementation and 64-bit ARM architecture.
 - Minimal 'systemless' C library for usage in kernel and user space
 - Simple object pool allocator for paging, kernel objects and allocating memory to user processes
 - pl011 driver for UART
-- Command-line interface as kernel process 
+- Command-line interface as kernel process
+- GTests for libc and vfs
 
 ## Limitations
-- Targets only aarch64 raspi4b
+- Targets only aarch64
 - Only tested in QEMU
-- Not designed to be very portable
 - Memory layout is quite static
 
 ## How to build and run
@@ -106,3 +106,20 @@ Closed file /testfile, ret=0
 - `cat <path>` - Print file contents to console
 
 Note: this shell runs in kernel mode, user-space shell is WIP
+
+
+## Tests
+Currently API tests are implemented for libc and kernel vfs using GTest framework.
+The tests are located in `tests/` directory and can be built and run with CMake.
+They are run natively on the host machine, not in QEMU.
+
+### Building
+```bash
+cmake -B build-tests -DBUILD_TESTS=ON
+cmake --build build-tests -j$(nproc)
+```
+
+### Running
+```bash
+ctest --test-dir build-tests/tests
+```
