@@ -6,26 +6,20 @@
 #include "serial-buffer.h"
 #include "spinlock.h"
 
-static Spinlock io_lock = {0};
-
-static inline void k_putchar_no_lock(const char c) {
-  pl011_putc(c);
-}
+Spinlock k_puts_lock = SPINLOCK_INIT_IRQ_SAFE;
 
 void k_putchar(const char c) {
-  spinlock_acquire(&io_lock);
-  k_putchar_no_lock(c);
-  spinlock_release(&io_lock);
+  pl011_putc(c);
 }
 
 void k_puts(const char* s) {
   char* tmp = (char*)s;
-  spinlock_acquire(&io_lock);
+  spinlock_acquire(&k_puts_lock);
   while(*tmp) {
-    k_putchar_no_lock(*tmp);
+    k_putchar(*tmp);
     tmp++;
   }
-  spinlock_release(&io_lock);
+  spinlock_release(&k_puts_lock);
 }
 
 char k_getchar(void) {
