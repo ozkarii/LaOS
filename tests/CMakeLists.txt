@@ -14,3 +14,4 @@ enable_testing()
 include(GoogleTest)
 
 add_subdirectory(libc)
+add_subdirectory(kernel)
