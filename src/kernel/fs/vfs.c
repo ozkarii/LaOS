@@ -82,8 +82,6 @@ int vfs_mount(const char *path, VFSInterface *fs, void *fs_data) {
 
 
 VFSFileDescriptor* vfs_open(const char *path, int flags, mode_t mode) {
-  (void)mode; // Unused for now, since we don't implement permissions
-
   if (!is_valid_path(path)) {
     return NULL;
   }
