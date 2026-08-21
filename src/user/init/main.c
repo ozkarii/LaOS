@@ -52,19 +52,19 @@ int main() {
     printf("Read %lu bytes from file %s: '%s'\n", bytes_read, filename, buffer);
   }
 
-  ret = close(fd2);
-  printf("Closed file %s, ret=%d\n", filename, ret);
-
-  /* TODO: fix context switch to child process, probably x30 register is wrong
   pid_t child_pid = fork();
   if (child_pid < 0) {
     printf("Fork failed\n");
   } else if (child_pid == 0) {
     printf("Hello from child process! PID: %d\n", getpid());
+    printf("Child process exiting. PID: %d\n", getpid());
   } else {
     printf("Hello from parent process! PID: %d, child PID: %d\n", getpid(), child_pid);
+    sleep(1000000); // Sleep for 1 second to allow child to exit first
   }
-  */
+
+  ret = close(fd2);
+  printf("Closed file after fork %s, ret=%d\n", filename, ret);
 
   return 0;
 }
