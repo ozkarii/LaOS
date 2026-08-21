@@ -14,5 +14,6 @@ target_link_libraries(kernel_memory
   PRIVATE
     LaOS::common
     LaOS::libc
+    LaOS::kernel::utils
     LaOS::kernel::platform
 )

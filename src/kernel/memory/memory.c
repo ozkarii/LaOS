@@ -5,6 +5,7 @@
 #include "memory.h"
 #include "spinlock.h"
 #include "mmu.h"
+#include "log.h"
 
 #define OBJECT_SIZE_SMALL  256
 #define OBJECT_SIZE_MEDIUM 4096
@@ -16,7 +17,7 @@
 
 #define CACHE_SIZE 4
 
-#define NUM_POOLS 3
+#define NUM_POOLS 4
 
 typedef struct {
   __attribute__((aligned(OBJECT_SIZE_SMALL)))
@@ -36,22 +37,27 @@ typedef struct {
 static ObjectPoolSmall object_pool_small[NUM_OBJECTS_SMALL];
 static ObjectPoolMedium object_pool_medium[NUM_OBJECTS_MEDIUM];
 static ObjectPoolLarge object_pool_large[NUM_OBJECTS_LARGE];
+static ObjectPoolSmall object_pool_irq_safe[NUM_OBJECTS_SMALL];
 
 static bool allocated_small[NUM_OBJECTS_SMALL] = { false };
 static bool allocated_medium[NUM_OBJECTS_MEDIUM] = { false };
 static bool allocated_large[NUM_OBJECTS_LARGE] = { false };
+static bool allocated_irq_safe[NUM_OBJECTS_SMALL] = { false };
 
 static int recently_freed_cache_small[CACHE_SIZE] = {-1, -1, -1, -1};
 static int recently_freed_cache_medium[CACHE_SIZE] = {-1, -1, -1, -1};
 static int recently_freed_cache_large[CACHE_SIZE] = {-1, -1, -1, -1};
+static int recently_freed_cache_irq_safe[CACHE_SIZE] = {-1, -1, -1, -1};
 
-Spinlock k_malloc_lock = {0};
+Spinlock k_malloc_lock = SPINLOCK_INIT;
+Spinlock k_malloc_irq_safe_lock = SPINLOCK_INIT_IRQ_SAFE;
 
 typedef enum {
   POOL_NONE,
   POOL_SMALL,
   POOL_MED,
-  POOL_LARGE
+  POOL_LARGE,
+  POOL_IRQ_SAFE
 } PoolType;
 
 typedef struct {
@@ -88,6 +94,13 @@ static PoolInfo pool_infos[NUM_POOLS] = {
     .cache = recently_freed_cache_large,
     .object_size = OBJECT_SIZE_LARGE,
     .num_objects = NUM_OBJECTS_LARGE,
+  },
+  {
+    .pool_base = object_pool_irq_safe,
+    .allocated = allocated_irq_safe,
+    .cache = recently_freed_cache_irq_safe,
+    .object_size = OBJECT_SIZE_SMALL,
+    .num_objects = NUM_OBJECTS_SMALL,
   }
 };
 
@@ -168,6 +181,22 @@ void* k_zalloc(size_t size) {
   return ret;
 }
 
+void* k_malloc_irq_safe(size_t size) {
+  if (size < 1) {
+    return NULL;
+  }
+
+  if (size > OBJECT_SIZE_SMALL) {
+    return NULL;  // Only small allocations are supported for IRQ safe
+  }
+
+  spinlock_acquire(&k_malloc_irq_safe_lock);
+  void* ptr = alloc_from_pool(&pool_infos[POOL_IRQ_SAFE - 1]);
+  spinlock_release(&k_malloc_irq_safe_lock);
+
+  return ptr;
+}
+
 void k_free(void* ptr) {
   if (ptr == NULL) {
     return;
@@ -178,12 +207,19 @@ void k_free(void* ptr) {
     return;  // Pointer not in any pool
   }
 
-  spinlock_acquire(&k_malloc_lock);
+  Spinlock* lock_to_use;
+  if (info.type == POOL_IRQ_SAFE) {
+    lock_to_use = &k_malloc_irq_safe_lock;
+  } else {
+    lock_to_use = &k_malloc_lock;
+  }
+
+  spinlock_acquire(lock_to_use);
 
   PoolInfo* pool = &pool_infos[info.type - 1];
 
   if (!pool->allocated[info.index]) {
-    spinlock_release(&k_malloc_lock);
+    spinlock_release(lock_to_use);
     return;  // Double free
   }
 
@@ -197,7 +233,7 @@ void k_free(void* ptr) {
     }
   }
 
-  spinlock_release(&k_malloc_lock);
+  spinlock_release(lock_to_use);
 }
 
 
@@ -238,6 +274,9 @@ int allocate_user_memory_block(uint64_t* l2_table, bool executable,
       out_mapping->size = BLOCK_SIZE_L2;
       out_mapping->executable = executable;
       out_mapping->l2_entry = &l2_table[i];
+
+      //LOG(LOG_MEMORY "Allocated user memory block: va=0x%lx, pa=0x%lx, size=0x%lx, exec=%d\n",
+      //    (uint64_t)out_mapping->va, (uint64_t)out_mapping->pa, (uint64_t)out_mapping->size, out_mapping->executable);
 
       return 0;
     }
