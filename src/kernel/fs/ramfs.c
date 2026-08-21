@@ -5,6 +5,7 @@
 #include "vfs.h"
 
 #define RAMFS_MAX_FILES 8
+#define RAMFS_MAX_FILE_HANDLES 16
 #define RAMFS_MAX_CHILDREN 4
 #define RAMFS_MAX_FILE_SIZE (1024 * 512)  // 512 kB max file size
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
@@ -24,11 +25,12 @@ typedef struct RamFSFile {
 typedef struct RamFSHandle {
   RamFSFile *file;
   size_t offset;
+  bool allocated;
 } RamFSHandle;
 
 typedef struct RamFS {
   RamFSFile files[RAMFS_MAX_FILES];
-  RamFSHandle handles[RAMFS_MAX_FILES];
+  RamFSHandle handles[RAMFS_MAX_FILE_HANDLES];
 } RamFS;
 
 
@@ -177,28 +179,25 @@ static int destroy_file(RamFSFile* file) {
 }
 
 // Allocate handle for file, returns NULL if no space
-// or if a handle already exists for the given file i.e. it is already open
 static RamFSHandle* allocate_handle(RamFS* fs, RamFSFile* file) {
-  RamFSHandle* handle_candidate = NULL;
-  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+  RamFSHandle* found_handle = NULL;
+  for (int i = 0; i < RAMFS_MAX_FILE_HANDLES; i++) {
     RamFSHandle* handle = &fs->handles[i];
-    if (handle_candidate == NULL && handle->file == NULL) {
-      handle_candidate = handle;
-      continue;
-    }
-    if (handle->file == file) {
-      goto file_already_open;
+    if (handle->allocated == false) {
+      found_handle = handle;
+      break;
     }
   }
 
-  handle_candidate->file = file;
-  handle_candidate->offset = 0;
+  if (found_handle == NULL) {
+    return NULL; // No space for new handle
+  }
 
-  return handle_candidate;
+  found_handle->file = file;
+  found_handle->offset = 0;
+  found_handle->allocated = true;
 
-file_already_open:
-  // Todo: return error code
-  return NULL;
+  return found_handle;
 }
 
 static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode) {
@@ -206,11 +205,12 @@ static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode)
   RamFSFile *file = find_file(fs, path);
   (void)mode; // Unused for now, since we don't implement permissions
 
-  if ((file == NULL) && (flags & O_CREAT)) {
-    file = create_file(fs, path, false);
-  }
   if (file == NULL) {
-    return NULL;
+    if (flags & O_CREAT) {
+      file = create_file(fs, path, false);
+    } else {
+      return NULL;  // File doesn't exist and O_CREAT not specified
+    }
   }
 
   RamFSHandle *handle = allocate_handle(fs, file);
@@ -335,7 +335,7 @@ static int ramfs_remove(void* fs_data, const char* path) {
     return -1; // File doesn't exist
   }
 
-  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+  for (int i = 0; i < RAMFS_MAX_FILE_HANDLES; i++) {
     if (fs->handles[i].file == file) {
       return -1; // Can't, if someone has opened this file
     }
