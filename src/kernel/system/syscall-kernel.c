@@ -32,7 +32,7 @@ typedef struct SyscallContext {
 
 typedef void (*syscall_handler_fn)(SyscallContext*);
 
-static inline void end_syscall_handler(SyscallContext *ctx) {
+static inline void end_deferred_syscall_handler(SyscallContext *ctx) {
   LOG(LOG_SYSCALL "Ending syscall handler for syscall number %ld for PID %d\n", ctx->args[0], ctx->pid);
   sched_unblock_task(ctx->task_id);
   k_free(ctx);
@@ -44,7 +44,7 @@ void handle_getpid(SyscallContext *ctx) {
   process_load_l2_table(ctx->pid);
   WRITE_AS_EL0_64(ctx->ret, ctx->pid);
   process_unload_l2_table(ctx->pid);
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
 
 void handle_write(SyscallContext *ctx) {
@@ -75,7 +75,7 @@ void handle_write(SyscallContext *ctx) {
 
   process_unload_l2_table(ctx->pid);
 
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
 
 void handle_open(SyscallContext *ctx) {
@@ -100,7 +100,7 @@ void handle_open(SyscallContext *ctx) {
   WRITE_AS_EL0_64(ctx->ret, ret);
 
   process_unload_l2_table(ctx->pid);
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
 
 void handle_read(SyscallContext *ctx) {
@@ -123,7 +123,7 @@ void handle_read(SyscallContext *ctx) {
   WRITE_AS_EL0_64(ctx->ret, bytes_read);
 
   process_unload_l2_table(ctx->pid);
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
 
 void handle_close(SyscallContext *ctx) {
@@ -135,7 +135,7 @@ void handle_close(SyscallContext *ctx) {
   WRITE_AS_EL0_64(ctx->ret, ret);
 
   process_unload_l2_table(ctx->pid);
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
 
 void handle_exit(SyscallContext *ctx) {
@@ -146,38 +146,59 @@ void handle_exit(SyscallContext *ctx) {
   (void)status;
   (void)process_destroy(ctx->pid);
 
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
 
 void handle_execv(SyscallContext* ctx) {
   process_load_l2_table(ctx->pid);
   WRITE_AS_EL0_64(ctx->ret, -1);
   process_unload_l2_table(ctx->pid);
-  end_syscall_handler(ctx);
+  end_deferred_syscall_handler(ctx);
 }
-
 
 void handle_fork(SyscallContext *ctx) {
   pid_t child_pid = process_clone(ctx->pid);
+
   process_load_l2_table(ctx->pid);
   WRITE_AS_EL0_64(ctx->ret, child_pid);
   process_unload_l2_table(ctx->pid);
-  end_syscall_handler(ctx);
+
+  if (child_pid != -1) {
+    // In the child process, return 0
+    process_load_l2_table(child_pid);
+    WRITE_AS_EL0_64(ctx->ret, 0);
+    process_unload_l2_table(child_pid);
+  }
+
+  end_deferred_syscall_handler(ctx);
 }
 
-static syscall_handler_fn syscall_handler_table[] = {
-  [SYS_GETPID] = handle_getpid,
-  [SYS_OPEN] = handle_open,
-  [SYS_WRITE] = handle_write,
-  [SYS_READ] = handle_read,
-  [SYS_CLOSE] = handle_close,
-  [SYS_EXIT] = handle_exit,
-  [SYS_FORK] = handle_fork,
-  [SYS_EXECV] = handle_execv
+void handle_sleep(SyscallContext *ctx) {
+  uint64_t sleep_us = (uint64_t)ctx->args[0];
+  sched_sleep_cpu_current_task(sleep_us);
+  ctx->ret = 0;
+}
+
+typedef struct SyscallHandlerEntry {
+  syscall_handler_fn fn;
+  bool deferred;
+} SyscallHandlerEntry;
+
+static SyscallHandlerEntry syscall_handler_table[] = {
+  [SYS_GETPID] = {handle_getpid, true},
+  [SYS_OPEN] = {handle_open, true},
+  [SYS_WRITE] = {handle_write, true},
+  [SYS_READ] = {handle_read, true},
+  [SYS_CLOSE] = {handle_close, true},
+  [SYS_EXIT] = {handle_exit, true},
+  [SYS_FORK] = {handle_fork, true},
+  [SYS_EXECV] = {handle_execv, true},
+  [SYS_SLEEP] = {handle_sleep, false},
 };
 
 int syscall_handler(long number, long* ret, ...) {
-  SyscallContext *ctx = k_malloc(sizeof(SyscallContext));
+  SyscallContext *ctx = k_malloc_irq_safe(sizeof(SyscallContext));
+  SyscallHandlerEntry *handler_entry = &syscall_handler_table[number];
 
   ctx->task_id = sched_get_cpu_current_task_id();
   ctx->pid = sched_get_pid_by_task_id(ctx->task_id);
@@ -199,11 +220,10 @@ int syscall_handler(long number, long* ret, ...) {
            ctx->args[4], ctx->args[5]);
   
   // Some syscalls can be handled without creating a handler task
-  if (number == SYS_SLEEP) {
-    sched_sleep_cpu_current_task((unsigned int)ctx->args[0] * 1000 * 1000);
-    ctx->ret = 0;
+  if (handler_entry->deferred == false) {
+    handler_entry->fn(ctx);
   } else {
-    sched_create_kernel_task((void*)syscall_handler_table[number], ctx);
+    sched_create_kernel_task((void*)syscall_handler_table[number].fn, ctx);
     // This will generate timer irq right after returning to EL0
     sched_block_current_task();
   }
