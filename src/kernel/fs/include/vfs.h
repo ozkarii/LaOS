@@ -40,8 +40,9 @@ typedef struct VFSMountPoint {
 typedef struct VFSFileDescriptor {
   bool allocated;
   VFSMountPoint* mount;
-  void* opaque_file_handle;
+  void* opaque_file_handle; // "inode"
   unsigned mode;
+  unsigned ref_count;
 } VFSFileDescriptor;
 
 typedef struct VFS {

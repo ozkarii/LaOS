@@ -116,6 +116,7 @@ VFSFileDescriptor* vfs_open(const char *path, int flags, mode_t mode) {
 
   VFSFileDescriptor* vfs_fd = &vfs_instance->open_files[free_fd_slot];
   vfs_fd->allocated = true;
+  vfs_fd->ref_count++;
   vfs_fd->mount = mount_point;
   vfs_fd->opaque_file_handle = file_handle;
   vfs_fd->mode = mode;
@@ -133,6 +134,16 @@ ssize_t vfs_write(VFSFileDescriptor* fd, const void *buffer, size_t size) {
 }
 
 int vfs_close(VFSFileDescriptor* fd) {
+  if (fd == NULL || !fd->allocated) {
+    return -1;
+  }
+
+  fd->ref_count--;
+
+  if (fd->ref_count > 0) {
+    return 0; // Still in use
+  }
+
   int res = fd->mount->fs->close(fd->mount->fs_data, fd->opaque_file_handle);
   fd->allocated = false;
   fd->opaque_file_handle = NULL;
