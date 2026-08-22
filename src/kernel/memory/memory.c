@@ -5,7 +5,6 @@
 #include "memory.h"
 #include "spinlock.h"
 #include "mmu.h"
-#include "log.h"
 
 #define OBJECT_SIZE_SMALL  256
 #define OBJECT_SIZE_MEDIUM 4096
@@ -274,9 +273,6 @@ int allocate_user_memory_block(uint64_t* l2_table, bool executable,
       out_mapping->size = BLOCK_SIZE_L2;
       out_mapping->executable = executable;
       out_mapping->l2_entry = &l2_table[i];
-
-      //LOG(LOG_MEMORY "Allocated user memory block: va=0x%lx, pa=0x%lx, size=0x%lx, exec=%d\n",
-      //    (uint64_t)out_mapping->va, (uint64_t)out_mapping->pa, (uint64_t)out_mapping->size, out_mapping->executable);
 
       return 0;
     }

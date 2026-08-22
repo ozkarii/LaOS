@@ -142,7 +142,7 @@ void command_mkdir(char** argv, size_t argc) {
   static char abs_path[PATH_NAME_MAX] = {0};
   resolve_relative_path(cwd, argv[1], abs_path);
 
-  int ret = vfs_mkdir(abs_path);
+  int ret = vfs_mkdir(abs_path, 0);
   if (ret != 0) {
     k_printf("vfs_mkdir: failed to create directory %s\n", abs_path);
   }

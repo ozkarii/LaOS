@@ -26,8 +26,8 @@ void irq_exception_handler(uintptr_t sp_after_ctx_save) {
   case UART_IRQ:
     serial_buffer_put(pl011_getc());
     break;
-  case EL1_PHY_TIM_IRQ:
-    sched_timer_irq_handler(EL1_PHY_TIM_IRQ, cpu_id, sp_after_ctx_save);
+  case EL0_PHY_TIM_IRQ:
+    sched_timer_irq_handler(EL0_PHY_TIM_IRQ, cpu_id, sp_after_ctx_save);
     break;
   default:
     k_printf("Got unknown IRQ with ID %x on CPU%u\n", int_id, cpu_id);
