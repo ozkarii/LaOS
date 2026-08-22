@@ -15,5 +15,6 @@ ${GDB_WRAPPER} qemu-system-aarch64 \
     -kernel ${BUILD_DIR}/src/kernel/kernel \
     -smp 4 \
     -device loader,file=${BUILD_DIR}/src/user/init/init,addr=0x70000000,force-raw=on \
+    -device loader,file=${BUILD_DIR}/src/user/sh/sh,addr=0x71000000,force-raw=on \
     -nographic \
     ${QEMU_EXTRA_ARGS}

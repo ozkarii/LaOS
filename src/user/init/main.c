@@ -29,7 +29,7 @@ int main() {
   pid_t pid = getpid();    
 
   printf("Hello from init process! PID: %d\n", pid);
-  
+  /*
   const char filename[] = "/testfile";
   int fd1 = open(filename , O_CREAT | O_RDWR, 0);
   printf("Created file %s with fd: %d\n", filename, fd1);
@@ -51,6 +51,7 @@ int main() {
     buffer[bytes_read] = '\0';
     printf("Read %lu bytes from file %s: '%s'\n", bytes_read, filename, buffer);
   }
+  */
 
   pid_t child_pid = fork();
   if (child_pid < 0) {
@@ -63,8 +64,22 @@ int main() {
     sleep(1000000); // Sleep for 1 second to allow child to exit first
   }
 
+  /*
   ret = close(fd2);
   printf("Closed file after fork %s, ret=%d\n", filename, ret);
+  */
+
+  if (getpid() == 1) {
+    while (1) {
+      sleep(100000000); // Sleep forever
+    }
+  }
+
+  if (execv("/bin/sh", NULL) < 0) {
+    printf("Execv failed\n");
+  } else {
+    printf("Execv succeeded?? this should not be printed\n");
+  }
 
   return 0;
 }

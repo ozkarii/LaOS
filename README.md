@@ -8,7 +8,7 @@ Intended for teaching myself OS implementation and 64-bit ARM architecture.
 - Isolated user processes
 - POSIX-like syscall API
     - File operations: open, read, write, close
-    - Process management: fork, exec, getpid, sleep
+    - Process management: fork, execv, getpid, sleep
 - SMP support
 - Semaphores and spinlocks in the kernel
 - Virtual memory with two-level page table hierarchy implemented
