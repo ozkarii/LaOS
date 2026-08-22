@@ -97,14 +97,14 @@ no_space:
 
 static int destroy_process_lock_held(Process* process) {
   if (process->allocated == false) {
-    LOG(LOG_KERNEL "Attempted to destroy an unallocated process with pid %d\n", process->pid);
+    LOG(LOG_PROC "Attempted to destroy an unallocated process with pid %d\n", process->pid);
     return -1;
   }
 
   for (int j = 0; j < MAX_OPEN_FDS; j++) {
     if (process->open_fds[j].vfs_fd != NULL) {
       if (vfs_close(process->open_fds[j].vfs_fd) != 0) {
-        k_printf(LOG_KERNEL "Failed to close fd %d for process %d during destruction\n",
+        k_printf(LOG_PROC "Failed to close fd %d for process %d during destruction\n",
                   process->open_fds[j].fd, process->pid);
       }
     }
@@ -272,7 +272,6 @@ pid_t process_clone(pid_t parent_pid) {
     goto process_clone_error;
   }
   child->task_id = id;
-  LOG(LOG_PROC "Cloned process %d from parent %d, child task id %ld\n", child->pid, parent->pid, child->task_id);
 
   unlock_processes_ctx();
 
@@ -282,6 +281,14 @@ process_clone_error:
   unlock_processes_ctx();
   (void)process_destroy(child->pid);
   return -1;
+}
+
+uint64_t* process_get_l2_table(pid_t pid) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return NULL;
+  }
+  return process->l2_table;
 }
 
 int process_load_l2_table(pid_t pid) {
@@ -366,4 +373,58 @@ int process_close_file(pid_t pid, int fd) {
   process->open_fds[fd].vfs_fd = NULL;
   process->open_fds[fd].fd = 0;
   return res;
+}
+
+int process_replace_executable(pid_t pid, const char* path) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
+  }
+
+  VFSFileDescriptor* vfs_fd = vfs_open(path, O_RDONLY, 0);
+  if (vfs_fd == NULL) {
+    return -1;
+  }
+
+  VFSStat stat;
+  if (vfs_stat(path, &stat) != 0) {
+    vfs_close(vfs_fd);
+    return -1;
+  }
+
+  void *tmp_elf = k_malloc(stat.size);
+  if (tmp_elf == NULL) {
+    vfs_close(vfs_fd);
+    return -1;
+  }
+
+  if (vfs_read(vfs_fd, tmp_elf, stat.size) != (ssize_t)stat.size) {
+    k_free(tmp_elf);
+    vfs_close(vfs_fd);
+    return -1;
+  }
+
+  uint64_t entry_offset = 0;
+  if (elf_load_from_memory(tmp_elf, stat.size, process->virtual_memory_mappings[0].pa,
+                           process->virtual_memory_mappings[1].pa, &entry_offset) != 0) {
+    k_free(tmp_elf);
+    vfs_close(vfs_fd);
+    return -1;
+  }
+
+  
+  task_id_t id = sched_create_user_task(entry_offset, process->l2_table, GET_CPU_ID(),
+                                        STACK_TOP_VA, process->pid);
+  if (id == NO_TASK) {
+    k_free(tmp_elf);
+    vfs_close(vfs_fd);
+    return -1;
+  }
+
+  sched_terminate_task(process->task_id);
+  process->task_id = id;
+
+  k_free(tmp_elf);
+  vfs_close(vfs_fd);
+  return 0;
 }
