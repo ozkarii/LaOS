@@ -24,7 +24,7 @@ typedef struct VFSInterface {
   ssize_t (*write)(void* fs_data, void* file, const void* buffer, size_t size);
   int (*close)(void* fs_data, void* file);
   int (*seek)(void* fs_data, void* file, size_t offset);
-  int (*mkdir)(void* fs_data, const char* path);
+  int (*mkdir)(void* fs_data, const char* path, mode_t mode);
   int (*readdir)(void* fs_data, void* dir, char* buffer, size_t size);
   int (*remove)(void* fs_data, const char* path);
   int (*stat)(void* fs_data, const char* path, VFSStat* stat);
@@ -58,7 +58,7 @@ ssize_t vfs_read(VFSFileDescriptor* fd, void* buffer, size_t size);
 ssize_t vfs_write(VFSFileDescriptor* fd, const void* buffer, size_t size);
 int vfs_close(VFSFileDescriptor* fd);
 int vfs_seek(VFSFileDescriptor* fd, size_t offset);
-int vfs_mkdir(const char* path);
+int vfs_mkdir(const char* path, mode_t mode);
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size);
 int vfs_remove(const char* path);
 int vfs_stat(const char* path, VFSStat* stat);

@@ -154,7 +154,11 @@ int vfs_seek(VFSFileDescriptor* fd, size_t offset) {
   return fd->mount->fs->seek(fd->mount->fs_data, fd->opaque_file_handle, offset);
 }
 
-int vfs_mkdir(const char* path) {
+int vfs_mkdir(const char* path, mode_t mode) {
+  if (!is_valid_path(path)) {
+    return -1;
+  }
+
   VFSMountPoint* mount = find_mount_point(vfs_instance->mounts, path);
   if (mount == NULL) {
     return -1;
@@ -163,7 +167,7 @@ int vfs_mkdir(const char* path) {
   const char* path_without_mount_point 
     = get_path_without_mount_point(path, mount->path);
 
-  return mount->fs->mkdir(mount->fs_data, path_without_mount_point);
+  return mount->fs->mkdir(mount->fs_data, path_without_mount_point, mode);
 }
 
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size) {

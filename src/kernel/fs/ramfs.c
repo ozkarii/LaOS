@@ -4,9 +4,9 @@
 #include "string.h"
 #include "vfs.h"
 
-#define RAMFS_MAX_FILES 8
+#define RAMFS_MAX_FILES 16
 #define RAMFS_MAX_FILE_HANDLES 16
-#define RAMFS_MAX_CHILDREN 4
+#define RAMFS_MAX_CHILDREN 8
 #define RAMFS_MAX_FILE_SIZE (1024 * 512)  // 512 kB max file size
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
 
@@ -39,7 +39,7 @@ static ssize_t ramfs_read(void *fs_data, void *file, void *buffer, size_t size);
 static ssize_t ramfs_write(void *fs_data, void *file, const void *buffer, size_t size);
 static int ramfs_close(void *fs_data, void *file);
 static int ramfs_seek(void *fs_data, void *file, size_t offset);
-static int ramfs_mkdir(void* fs_data, const char* path);
+static int ramfs_mkdir(void* fs_data, const char* path, mode_t mode);
 static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size);
 static int ramfs_remove(void* fs_data, const char* path);
 static int ramfs_stat(void* fs_data, const char* path, VFSStat* stat);
@@ -206,10 +206,12 @@ static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode)
   (void)mode; // Unused for now, since we don't implement permissions
 
   if (file == NULL) {
-    if (flags & O_CREAT) {
-      file = create_file(fs, path, false);
-    } else {
-      return NULL;  // File doesn't exist and O_CREAT not specified
+    if (!(flags & O_CREAT)) {
+      return NULL;  // Trying to open a non-existent file without O_CREAT
+    }
+    file = create_file(fs, path, false);
+    if (file == NULL) {
+      return NULL; // Failed to create file  
     }
   }
 
@@ -270,9 +272,10 @@ static int ramfs_seek(void *fs_data, void *handle, size_t offset) {
   return 0;
 }
 
-static int ramfs_mkdir(void* fs_data, const char* path) {
+static int ramfs_mkdir(void* fs_data, const char* path, mode_t mode) {
   RamFS *fs = (RamFS*)fs_data;
   RamFSFile *file = find_file(fs, path);
+  (void)mode; // Unused for now, since we don't implement permissions
   
   if (!file) {
     file = create_file(fs, path, true);

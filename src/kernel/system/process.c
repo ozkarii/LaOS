@@ -302,15 +302,13 @@ int process_unload_l2_table(pid_t pid) {
   return 0;
 }
 
-int process_open_file(pid_t pid, const char* path, int flags, int mode) {
-  (void)mode;
-
+int process_open_file(pid_t pid, const char* path, int flags, mode_t mode) {
   Process* process = get_process_by_pid(pid);
   if (process == NULL) {
     return -1;
   }
 
-  VFSFileDescriptor* vfs_fd = vfs_open(path, flags, 0);
+  VFSFileDescriptor* vfs_fd = vfs_open(path, flags, mode);
   if (vfs_fd == NULL) {
     return -1;
   }

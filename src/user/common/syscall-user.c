@@ -74,7 +74,7 @@ unsigned int sleep(unsigned int seconds) {
   return (unsigned int)ret;
 }
 
-int open(const char *path, int flags, int mode) {
+int open(const char *path, int flags, mode_t mode) {
   long ret = -1;
   make_syscall(SYS_OPEN, &ret, path, flags, mode);
   return (int)ret;
