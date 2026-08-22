@@ -23,6 +23,16 @@
     do {} while (0);
 #endif
 
+// Loads target process's L2 table
+#define WITH_PROCESS_L2_TABLE(pid, code_block) \
+  do { \
+    sched_set_l2_table_for_cpu_current_task(process_get_l2_table(pid)); \
+    process_load_l2_table(pid); \
+    code_block; \
+    sched_set_l2_table_for_cpu_current_task(NULL); \
+    process_unload_l2_table(pid); \
+  } while (0)
+
 typedef struct SyscallContext {
   pid_t pid;
   task_id_t task_id;
@@ -41,9 +51,9 @@ static inline void end_deferred_syscall_handler(SyscallContext *ctx) {
 }
 
 void handle_getpid(SyscallContext *ctx) {
-  process_load_l2_table(ctx->pid);
-  WRITE_AS_EL0_64(ctx->ret, ctx->pid);
-  process_unload_l2_table(ctx->pid);
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    WRITE_AS_EL0_64(ctx->ret, ctx->pid);
+  });
   end_deferred_syscall_handler(ctx);
 }
 
@@ -54,26 +64,24 @@ void handle_write(SyscallContext *ctx) {
 
   char* tmp_buffer = k_malloc(size + 1);
 
-  process_load_l2_table(ctx->pid);
-  
-  for (size_t i = 0; i < size; i++) {
-    tmp_buffer[i] = READ_AS_EL0_8((user_buffer + i));
-  }
-  tmp_buffer[size] = '\0';
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    for (size_t i = 0; i < size; i++) {
+      tmp_buffer[i] = READ_AS_EL0_8((user_buffer + i));
+    }
+    tmp_buffer[size] = '\0';
 
-  size_t bytes_written = 0;
+    size_t bytes_written = 0;
 
-  // "stdout"
-  if (fd == 1) {
-    k_puts(tmp_buffer);
-    bytes_written = size;
-  } else {
-    bytes_written = process_write_file(ctx->pid, fd, tmp_buffer, size);
-  }
+    // "stdout"
+    if (fd == 1) {
+      k_puts(tmp_buffer);
+      bytes_written = size;
+    } else {
+      bytes_written = process_write_file(ctx->pid, fd, tmp_buffer, size);
+    }
 
-  WRITE_AS_EL0_64(ctx->ret, bytes_written);
-
-  process_unload_l2_table(ctx->pid);
+    WRITE_AS_EL0_64(ctx->ret, bytes_written);
+  });
 
   end_deferred_syscall_handler(ctx);
 }
@@ -81,25 +89,23 @@ void handle_write(SyscallContext *ctx) {
 void handle_open(SyscallContext *ctx) {
   char* user_path = (char*)ctx->args[0];
   int flags = ctx->args[1];
-  int mode = ctx->args[2];
+  mode_t mode = ctx->args[2];
 
   char tmp_path[256];
 
-  process_load_l2_table(ctx->pid);
-  
-  for (size_t i = 0; i < sizeof(tmp_path) - 1; i++) {
-    char c = READ_AS_EL0_8((user_path + i));
-    tmp_path[i] = c;
-    if (c == '\0') {
-      break;
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    for (size_t i = 0; i < sizeof(tmp_path) - 1; i++) {
+      char c = READ_AS_EL0_8((user_path + i));
+      tmp_path[i] = c;
+      if (c == '\0') {
+        break;
+      }
     }
-  }
-  tmp_path[sizeof(tmp_path) - 1] = '\0';
+    tmp_path[sizeof(tmp_path) - 1] = '\0';
 
-  int ret = process_open_file(ctx->pid, tmp_path, flags, mode);
-  WRITE_AS_EL0_64(ctx->ret, ret);
-
-  process_unload_l2_table(ctx->pid);
+    int ret = process_open_file(ctx->pid, tmp_path, flags, mode);
+    WRITE_AS_EL0_64(ctx->ret, ret);
+  });
   end_deferred_syscall_handler(ctx);
 }
 
@@ -110,31 +116,27 @@ void handle_read(SyscallContext *ctx) {
 
   char* tmp_buffer = k_malloc(size);
 
-  process_load_l2_table(ctx->pid);
-  
-  ssize_t bytes_read = process_read_file(ctx->pid, fd, tmp_buffer, size);
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    ssize_t bytes_read = process_read_file(ctx->pid, fd, tmp_buffer, size);
 
-  if (bytes_read > 0) {
-    for (ssize_t i = 0; i < bytes_read; i++) {
-      WRITE_AS_EL0_8((user_buffer + i), tmp_buffer[i]);
+    if (bytes_read > 0) {
+      for (ssize_t i = 0; i < bytes_read; i++) {
+        WRITE_AS_EL0_8((user_buffer + i), tmp_buffer[i]);
+      }
     }
-  }
 
-  WRITE_AS_EL0_64(ctx->ret, bytes_read);
-
-  process_unload_l2_table(ctx->pid);
+    WRITE_AS_EL0_64(ctx->ret, bytes_read);
+  });
   end_deferred_syscall_handler(ctx);
 }
 
 void handle_close(SyscallContext *ctx) {
   int fd = ctx->args[0];
 
-  process_load_l2_table(ctx->pid);
-  
-  int ret = process_close_file(ctx->pid, fd);
-  WRITE_AS_EL0_64(ctx->ret, ret);
-
-  process_unload_l2_table(ctx->pid);
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    int ret = process_close_file(ctx->pid, fd);
+    WRITE_AS_EL0_64(ctx->ret, ret);
+  });
   end_deferred_syscall_handler(ctx);
 }
 
@@ -150,8 +152,19 @@ void handle_exit(SyscallContext *ctx) {
 }
 
 void handle_execv(SyscallContext* ctx) {
+  uint64_t* l2_table = process_get_l2_table(ctx->pid);
+  sched_set_l2_table_for_cpu_current_task(l2_table);
   process_load_l2_table(ctx->pid);
-  WRITE_AS_EL0_64(ctx->ret, -1);
+  int ret = process_replace_executable(ctx->pid, (const char*)ctx->args[0]);
+  if (ret == 0) {
+    // If execv is successful, the process image is replaced, and we should not return to the old context.
+    // Instead, we should terminate the current task and switch to the new executable.
+    k_free(ctx);
+    sched_terminate_cpu_current_task();
+    __builtin_unreachable();
+  }
+  WRITE_AS_EL0_64(ctx->ret, ret);
+  sched_set_l2_table_for_cpu_current_task(NULL);
   process_unload_l2_table(ctx->pid);
   end_deferred_syscall_handler(ctx);
 }
@@ -159,15 +172,15 @@ void handle_execv(SyscallContext* ctx) {
 void handle_fork(SyscallContext *ctx) {
   pid_t child_pid = process_clone(ctx->pid);
 
-  process_load_l2_table(ctx->pid);
-  WRITE_AS_EL0_64(ctx->ret, child_pid);
-  process_unload_l2_table(ctx->pid);
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    WRITE_AS_EL0_64(ctx->ret, child_pid);
+  });
 
   if (child_pid != -1) {
     // In the child process, return 0
-    process_load_l2_table(child_pid);
-    WRITE_AS_EL0_64(ctx->ret, 0);
-    process_unload_l2_table(child_pid);
+    WITH_PROCESS_L2_TABLE(child_pid, {
+      WRITE_AS_EL0_64(ctx->ret, 0);
+    });
   }
 
   end_deferred_syscall_handler(ctx);
@@ -177,6 +190,20 @@ void handle_sleep(SyscallContext *ctx) {
   uint64_t sleep_us = (uint64_t)ctx->args[0];
   sched_sleep_cpu_current_task(sleep_us);
   ctx->ret = 0;
+}
+
+void handle_mkdir(SyscallContext *ctx) {
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    int ret = vfs_mkdir((const char*)ctx->args[0], (int)ctx->args[1]);
+    WRITE_AS_EL0_64(ctx->ret, ret);
+  });
+
+  end_deferred_syscall_handler(ctx);
+}
+
+void handle_unimplemented_syscall(SyscallContext *ctx) {
+  LOG(LOG_SYSCALL "Unimplemented syscall number %ld for PID %d\n", ctx->args[0], ctx->pid);
+  WRITE_AS_EL0_64(ctx->ret, -1);
 }
 
 typedef struct SyscallHandlerEntry {
@@ -194,6 +221,9 @@ static SyscallHandlerEntry syscall_handler_table[] = {
   [SYS_FORK] = {handle_fork, true},
   [SYS_EXECV] = {handle_execv, true},
   [SYS_SLEEP] = {handle_sleep, false},
+  [SYS_MKDIR] = {handle_mkdir, true},
+  [SYS_REMOVE] = {handle_unimplemented_syscall, false},
+  [SYS_STAT] = {handle_unimplemented_syscall, false},
 };
 
 int syscall_handler(long number, long* ret, ...) {

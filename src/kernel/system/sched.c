@@ -20,7 +20,7 @@
 #define US_TO_CNTP_TVAL(us) ((us) * GET_TIMER_FREQ() / 1000000ULL)
 #define IDLE_TASK_INDEX MAX_TASKS  // Idle tasks are placed at the end of the task list
 
-#define ENABLE_LOG 0
+#define ENABLE_LOG 1
 #if ENABLE_LOG
 #define LOG(...) \
     do { \
@@ -28,6 +28,17 @@
     } while (0)
 #else
 #define LOG(...) \
+    do {} while (0);
+#endif
+
+#define ENABLE_TRACE 0
+#if ENABLE_TRACE
+#define TRACE(...) \
+    do { \
+      k_printf(__VA_ARGS__); \
+    } while (0)
+#else
+#define TRACE(...) \
     do {} while (0);
 #endif
 
@@ -383,24 +394,22 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
 
   start_timer();
 
+  mmu_set_user_l2_table(new_task->l2_table);
+
   if (initial) {
     if (user_task) {
-      mmu_set_user_l2_table(new_task->l2_table);
       unlock_sched_ctx();
       INITIAL_JUMP_TO_USER_TASK_FROM_IRQ(new_task->ctx);
     } else {
-      mmu_set_user_l2_table(NULL);
       unlock_sched_ctx();
       INITIAL_JUMP_TO_KERNEL_TASK_FROM_IRQ(new_task->ctx, new_task->param);
     }
   }
   else {
     if (user_task) {
-      mmu_set_user_l2_table(new_task->l2_table);
       unlock_sched_ctx();
       RESTORE_USER_CONTEXT_FROM_IRQ(new_task->ctx);
     } else {
-      mmu_set_user_l2_table(NULL);
       unlock_sched_ctx();
       RESTORE_KERNEL_CONTEXT_FROM_IRQ(new_task->ctx);
     }
@@ -408,6 +417,10 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
 }
 
 void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
+  LOG(LOG_SCHED "Initializing scheduler...\n");
+  LOG(LOG_SCHED "Time slice: %lu us\n", time_slice_us);
+  LOG(LOG_SCHED "Policy: FIFO, strict CPU affinity\n");
+  LOG(LOG_SCHED "Maximum number of tasks: %d\n", MAX_TASKS);
   memset(&sched_ctx, 0, sizeof(SchedContext));
   sched_ctx.lock.used_from_irq = true;
   sched_ctx.time_slice_cntp_tval = US_TO_CNTP_TVAL(time_slice_us);
@@ -435,7 +448,7 @@ int sched_start(void) {
   Task* task = get_cpu_current_task();
   task->state = TASK_STATE_RUNNING;
 
-  LOG(LOG_SCHED "switch CPU%d: start -> %ld\r\n", GET_CPU_ID(), task->id);
+  LOG(LOG_SCHED "Starting scheduler on CPU%d with task ID %ld\r\n", GET_CPU_ID(), task->id);
 
   start_timer();
 
@@ -451,7 +464,7 @@ static void wake_up_tasks() {
     if (sched_ctx.task_list[i].state == TASK_STATE_BLOCKED &&
         sched_ctx.task_list[i].sleep_until > 0 &&
         current_time >= sched_ctx.task_list[i].sleep_until) {
-      LOG(LOG_SCHED "wakeup: %ld\r\n", sched_ctx.task_list[i].id);
+      TRACE(LOG_SCHED "wakeup: %ld\r\n", sched_ctx.task_list[i].id);
       sched_ctx.task_list[i].state = TASK_STATE_READY;
       sched_ctx.task_list[i].sleep_until = 0;
     }
@@ -481,19 +494,19 @@ void sched_timer_irq_handler(uint32_t int_id, uint32_t cpu_id, uintptr_t sp_afte
     return;  // No need to switch context if task didn't change
   }
 
-  LOG(LOG_SCHED "switch CPU%d: %ld(%d) -> %ld(%d)\r\n",
+  TRACE(LOG_SCHED "switch CPU%d: %ld(%d) -> %ld(%d)\r\n",
           cpu_id, current_task->id, current_task->type, next_task->id, next_task->type);
 
   // Context switch needed, save the rest of the context (if current task is not terminated)
   // General purpose registers have been saved already to the stack
   if (current_task->state != TASK_STATE_TERMINATED) {
     SAVE_ELR_EL1(current_task->ctx);
-    LOG(LOG_SCHED "CPU%d saved elr_el1: 0x%lx\r\n", cpu_id, current_task->ctx.pc);
+    TRACE(LOG_SCHED "CPU%d saved elr_el1: 0x%lx\r\n", cpu_id, current_task->ctx.pc);
 
     if (current_task->type == TASK_TYPE_USER) {
       // User stack pointer needs to be saved separately for restoring user context later
       SAVE_SP_EL0(current_task->ctx);
-      LOG(LOG_SCHED "saved sp_el0: 0x%lx\r\n", current_task->ctx.sp_el0);
+      TRACE(LOG_SCHED "saved sp_el0: 0x%lx\r\n", current_task->ctx.sp_el0);
     }
 
     current_task->ctx.sp_el1 = sp_after_ctx_save;
@@ -533,7 +546,7 @@ task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param) {
   new_task->cpu_id = GET_CPU_ID();
   unlock_sched_ctx();
 
-  LOG(LOG_SCHED "Created kernel task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d\r\n",
+  TRACE(LOG_SCHED "Created kernel task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d\r\n",
       new_task->id, new_task->ctx.pc, new_task->ctx.sp_el1, new_task->cpu_id);
 
   return new_task->id;
@@ -569,7 +582,7 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table,
   new_task->pid = pid;
   unlock_sched_ctx();
 
-  LOG(LOG_SCHED "Created user task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d, pid=%d\r\n",
+  TRACE(LOG_SCHED "Created user task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d, pid=%d\r\n",
       new_task->id, new_task->ctx.pc, new_task->ctx.sp_el0, new_task->cpu_id, new_task->pid);
 
   return new_task->id;
@@ -694,4 +707,13 @@ task_id_t sched_clone_user_task(task_id_t src_task_id, uint64_t* l2_table, pid_t
   new_task->state = TASK_STATE_READY;
 
   return new_task_id;
+}
+
+int sched_set_l2_table_for_cpu_current_task(uint64_t* l2_table) {
+  Task* current_task = get_cpu_current_task();
+  if (current_task == NULL) {
+    return -1;
+  }
+  current_task->l2_table = l2_table;
+  return 0;
 }

@@ -58,4 +58,6 @@ pid_t sched_get_pid_by_task_id(task_id_t task_id);
 
 task_id_t sched_clone_user_task(task_id_t src_task_id, uint64_t* l2_table, pid_t pid, uint32_t target_cpu);
 
+int sched_set_l2_table_for_cpu_current_task(uint64_t* l2_table);
+
 #endif /* SCHED_H */
