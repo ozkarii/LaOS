@@ -126,10 +126,10 @@ int c_entry() {
   pl011_set_rx_irq(true);
 
   gicd_enable_irq(UART_IRQ);
-  gicd_enable_irq(EL1_PHY_TIM_IRQ);
+  gicd_enable_irq(EL0_PHY_TIM_IRQ);
 
   gicd_set_irq_priority(UART_IRQ, 1);
-  gicd_set_irq_priority(EL1_PHY_TIM_IRQ, 0);
+  gicd_set_irq_priority(EL0_PHY_TIM_IRQ, 0);
 
   gicd_set_irq_cpu(UART_IRQ, 0);
 
@@ -179,7 +179,9 @@ int c_entry_secondary_core(void) {
 
   mmu_init();
 
-  gicd_enable_irq(EL1_PHY_TIM_IRQ);
+  k_printf(LOG_MAIN "CPU%u MMU initialized\n", cpu_id);
+
+  gicd_enable_irq(EL0_PHY_TIM_IRQ);
   gicc_set_priority_mask(0xFF, cpu_id);
   gicc_enable(cpu_id);
 

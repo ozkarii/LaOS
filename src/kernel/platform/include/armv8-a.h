@@ -121,7 +121,7 @@ MAKE_MRS_GETTER_64(GET_TIMER_COUNT, cntpct_el0)
 
 /* INTERRUPTS */
 
-#define EL1_PHY_TIM_IRQ 30u
+#define EL0_PHY_TIM_IRQ 30u
 
 #define DAIF_MASK 0xF
 
