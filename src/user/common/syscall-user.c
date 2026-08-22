@@ -97,3 +97,9 @@ int close(int fd) {
   make_syscall(SYS_CLOSE, &ret, fd);
   return (int)ret;
 }
+
+int mkdir(const char *path, mode_t mode) {
+  long ret = -1;
+  make_syscall(SYS_MKDIR, &ret, path, mode);
+  return (int)ret;
+}
