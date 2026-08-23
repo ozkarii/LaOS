@@ -12,7 +12,7 @@ target_include_directories(kernel_utils
 )
 
 target_link_libraries(kernel_utils
-  PUBLIC
+  PRIVATE
     LaOS::common
     LaOS::libc
 )
