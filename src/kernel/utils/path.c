@@ -20,7 +20,7 @@ bool is_valid_path(const char* path) {
   while (path[i]) {
     char c = path[i];
     // Has to be proper character: a-z A-Z 0-9 / . _ -
-    if (c < 45 || (c > 57 && c < 65) || (c > 90 && c < 97) || c > 122) {
+    if (c < 'a' || (c > '9' && c < 'A') || (c > 'Z' && c != '_' && c < 'a') || c > 'z') {
       return false;
     }
 
