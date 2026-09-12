@@ -1,6 +1,9 @@
 #ifndef LIBC_IMPL_H
 #define LIBC_IMPL_H
 
+#include <stddef.h>
+#include <stdarg.h>
+
 void* memcpy_impl(void* dest, const void* src, size_t n);
 void* memset_impl(void* ptr, int value, size_t num);
 char* strcpy_impl(char* dest, const char* src);

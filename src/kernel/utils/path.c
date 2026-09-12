@@ -11,7 +11,7 @@ bool is_valid_path(const char* path) {
     // No empty paths
     return false;
   }
-  if (path[0] != PATH_SEPARATOR) {
+  if (path[0] != '/') {
     // Has to be absolute path
     return false;
   }
@@ -20,11 +20,14 @@ bool is_valid_path(const char* path) {
   while (path[i]) {
     char c = path[i];
     // Has to be proper character: a-z A-Z 0-9 / . _ -
-    if (c < 'a' || (c > '9' && c < 'A') || (c > 'Z' && c != '_' && c < 'a') || c > 'z') {
+    if (!((c >= 'a' && c <= 'z') ||
+          (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') ||
+          c == '/' || c == '.' || c == '_' || c == '-')) {
       return false;
     }
 
-    if (c == PATH_SEPARATOR && path[i + 1] == PATH_SEPARATOR) {
+    if (c == '/' && path[i + 1] == '/') {
       // No double slashes
       return false;
     }
@@ -41,10 +44,8 @@ bool is_valid_path(const char* path) {
 }
 
 const char* get_path_without_mount_point(const char* path, const char* mount_point) {
-  static const char root_str[2] = {PATH_SEPARATOR, '\0'};
-
   const char* path_without_mount_point;
-  if (!strcmp(mount_point, root_str)) {
+  if (!strcmp(mount_point, "/")) {
     // Special case if mount is root
     path_without_mount_point = path;
   }
@@ -56,28 +57,39 @@ const char* get_path_without_mount_point(const char* path, const char* mount_poi
 }
 
 char* strip_prefix(const char* src, const char* prefix) {
-  char* src_tmp = (char*)src;
-  char* prefix_tmp = (char*)prefix;
-
-  while (*src_tmp == *prefix_tmp && *src_tmp) {
-    src_tmp++;
-    prefix_tmp++;
+  int i = 0; // Where to move the pointer to
+  while (src[i] && prefix[i]) {
+    if (src[i] != prefix[i]) {
+      // Mismatch, return original string
+      return (char*)src;
+    }
+    i++;
   }
-
-  return src_tmp;
+  return (char*)(src + i);
 }
 
-int calculate_first_diff_depth(const char* path1, const char* path2) {
-  int depth = -1;
-  char* tmp_path = (char*)path1;
-  char* tmp_mnt_path = (char*)path2;
 
-  while (*tmp_path && *tmp_mnt_path && (*tmp_path == *tmp_mnt_path)) {
-    if (*tmp_path == PATH_SEPARATOR) {
+int calculate_common_path_depth(const char* path, const char* mount_point) {
+  // Special case for root mount point
+  if (mount_point[0] == '/' && mount_point[1] == '\0') {
+    return 0;
+  }
+
+  int depth = 0;
+  int i = 0;
+  while (path[i] != '\0' && mount_point[i] != '\0') {
+    if (path[i] != mount_point[i]) {
+      // Mismatch mound, not a valid mount point for this path
+      return -1;
+    }
+    if (path[i] == '/') {
+      // Slash found, increment depth
       depth++;
     }
-    tmp_path++;
-    tmp_mnt_path++;
+
+    // Next character
+    i++;
   }
+
   return depth;
 }

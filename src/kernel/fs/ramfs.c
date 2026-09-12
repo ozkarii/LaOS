@@ -68,7 +68,8 @@ void* ramfs_init(void* dest, size_t max_size) {
   // Create root directory
   fs->files[ROOT_IDX].is_allocated = true;
   fs->files[ROOT_IDX].is_directory = true;
-  fs->files[ROOT_IDX].path[0] = PATH_SEPARATOR;
+  fs->files[ROOT_IDX].path[0] = '/';
+  fs->files[ROOT_IDX].path[1] = '\0';
   
   return fs;
 }
@@ -94,7 +95,7 @@ static RamFSFile* find_parent(RamFS *fs, const char *path) {
   // Find last separator to get parent path
   const char *last_sep = path;
   for (const char* p = path; *p; p++) {
-    if (*p == PATH_SEPARATOR) {
+    if (*p == '/') {
       last_sep = p;
     }
   }
@@ -306,7 +307,7 @@ static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size)
       // Extract just the filename from the full path
       const char* name = child->path;
       for (const char *p = child->path; *p; p++) {
-        if (*p == PATH_SEPARATOR && *(p + 1)) {
+        if (*p == '/' && *(p + 1)) {
           name = p + 1;
         }
       }

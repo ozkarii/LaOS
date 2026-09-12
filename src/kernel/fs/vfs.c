@@ -5,6 +5,7 @@
 // Singleton instance of the VFS
 VFS *vfs_instance = NULL;
 
+// Assumes valid path
 static VFSMountPoint* find_mount_point(VFSMountPoint* mounts, const char* path) {
   VFSMountPoint* winner = NULL;
   int winner_depth = -1;
@@ -15,7 +16,7 @@ static VFSMountPoint* find_mount_point(VFSMountPoint* mounts, const char* path) 
       continue;
     }
 
-    int depth = calculate_first_diff_depth(path, mount->path);
+    int depth = calculate_common_path_depth(path, mount->path);
 
     if (depth > winner_depth) {
       winner_depth = depth;
@@ -126,15 +127,21 @@ VFSFileDescriptor* vfs_open(const char *path, int flags, mode_t mode) {
 
 
 ssize_t vfs_read(VFSFileDescriptor* fd, void *buffer, size_t size) {
+  if (!fd->allocated) {
+    return -1;
+  }
   return fd->mount->fs->read(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
 
 ssize_t vfs_write(VFSFileDescriptor* fd, const void *buffer, size_t size) {
+  if (!fd->allocated) {
+    return -1;
+  }
   return fd->mount->fs->write(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
 
 int vfs_close(VFSFileDescriptor* fd) {
-  if (fd == NULL || !fd->allocated) {
+  if (!fd->allocated) {
     return -1;
   }
 
@@ -151,6 +158,9 @@ int vfs_close(VFSFileDescriptor* fd) {
 }
 
 int vfs_seek(VFSFileDescriptor* fd, size_t offset) {
+  if (!fd->allocated) {
+    return -1;
+  }
   return fd->mount->fs->seek(fd->mount->fs_data, fd->opaque_file_handle, offset);
 }
 
@@ -171,10 +181,17 @@ int vfs_mkdir(const char* path, mode_t mode) {
 }
 
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size) {
+  if (!fd->allocated) {
+    return -1;
+  }
   return fd->mount->fs->readdir(fd->mount->fs_data, fd->opaque_file_handle, buffer, size);
 }
 
 int vfs_remove(const char* path) {
+  if (!is_valid_path(path)) {
+    return -1;
+  }
+
   VFSMountPoint* mount = find_mount_point(vfs_instance->mounts, path);
   if (mount == NULL) {
     return -1;
@@ -187,6 +204,10 @@ int vfs_remove(const char* path) {
 }
 
 int vfs_stat(const char* path, VFSStat* stat) {
+  if (!is_valid_path(path)) {
+    return -1;
+  }
+
   VFSMountPoint* mount = find_mount_point(vfs_instance->mounts, path);
   if (mount == NULL) {
     return -1;
