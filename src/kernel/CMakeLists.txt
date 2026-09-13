@@ -39,5 +39,6 @@ if (NOT BUILD_TESTS)
       LaOS::kernel::memory
       LaOS::kernel::platform
       LaOS::kernel::fs
+      LaOS::ramdisk::loader
   )
 endif()

@@ -273,7 +273,7 @@ pid_t process_clone(pid_t parent_pid) {
     }
   }
 
-  task_id_t id = sched_clone_user_task(parent->task_id, child->l2_table, child->pid, 0);
+  task_id_t id = sched_clone_user_task(parent->task_id, child->l2_table, child->pid, GET_CPU_ID());
   if (id == NO_TASK) {
     goto process_clone_error;
   }

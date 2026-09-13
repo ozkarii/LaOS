@@ -83,6 +83,10 @@ size_t ramfs_get_size(void) {
   return sizeof(RamFS);
 }
 
+int ramfs_get_max_files(void) {
+  return RAMFS_MAX_FILES;
+}
+
 static RamFSFile* find_file(RamFS *fs, const char *path) {
   for (int i = 0; i < RAMFS_MAX_FILES; i++) {
     if (fs->files[i].is_allocated && strcmp(fs->files[i].path, path) == 0) {

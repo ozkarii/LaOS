@@ -21,14 +21,9 @@
 #include "ramfs.h"
 #include "log.h"
 #include "process.h"
+#include "ramdisk.h"
 
-#define INIT_BIN_LOAD_ADDR 0x70000000UL
-#define INIT_BIN_SIZE      (1024 * 512)
-#define INIT_BIN_PATH      "/sbin/init"
-
-#define SHELL_BIN_LOAD_ADDR 0x71000000UL
-#define SHELL_BIN_SIZE      (1024 * 512)
-#define SHELL_BIN_PATH     "/bin/sh"
+#define RAMDISK_ADDR 0x70000000UL
 
 const char* INITIAL_RAMFS_DIRECTORIES[] = {
   "/sbin",
@@ -51,6 +46,45 @@ static int copy_bin_from_memory_to_file(VFSFileDescriptor* fd, uint8_t* src, siz
     k_printf(LOG_MAIN "Failed to write to binary file in RamFS\n");
     k_printf(LOG_MAIN "Wrote 0x%lx bytes\n", bytes_written);
     return -1;
+  }
+
+  return 0;
+}
+
+static int ensure_directory_exists(const char* path) {
+  VFSStat stat;
+  if (vfs_stat(path, &stat) == 0) {
+    return stat.is_directory ? 0 : -1;
+  }
+
+  return vfs_mkdir(path, 0);
+}
+
+static int ensure_parent_directories(const char* path) {
+  size_t path_len = strlen(path);
+  if (path_len == 0 || path[0] != '/') {
+    return -1;
+  }
+
+  char dir_path[PATH_NAME_MAX];
+  size_t dir_len = 0;
+
+  for (size_t i = 1; i < path_len; i++) {
+    if (path[i] != '/') {
+      continue;
+    }
+
+    if (i >= PATH_NAME_MAX) {
+      return -1;
+    }
+
+    memcpy(dir_path, path, i);
+    dir_path[i] = '\0';
+    dir_len = i;
+
+    if (dir_len > 0 && ensure_directory_exists(dir_path) != 0) {
+      return -1;
+    }
   }
 
   return 0;
@@ -81,56 +115,64 @@ int setup_ramfs(void) {
   }
   k_printf(LOG_MAIN "Mounted RamFS at /\n");
 
-  // Create initial directories
-  const size_t num_dirs = 
-    sizeof(INITIAL_RAMFS_DIRECTORIES) / sizeof(INITIAL_RAMFS_DIRECTORIES[0]);
+  const void* ramdisk_image = (const void*)RAMDISK_ADDR;
+  if (!ramdisk_is_valid(ramdisk_image)) {
+    k_printf(LOG_MAIN "Invalid ramdisk image at 0x%lx\n", RAMDISK_ADDR);
+    return -1;
+  }
+  k_printf(LOG_MAIN "Valid ramdisk image found at 0x%lx\n", RAMDISK_ADDR);
+  
+  int num_files = ramdisk_get_file_count(ramdisk_image);
+  if (num_files > ramfs_get_max_files()) {
+    k_printf(LOG_MAIN "Ramdisk has too many files for RamFS\n");
+    return -1;
+  }
+  k_printf(LOG_MAIN "Loading ramdisk from 0x%lx\n", RAMDISK_ADDR);
 
-  for (unsigned i = 0; i < num_dirs; i++) {
-    int ret = vfs_mkdir(INITIAL_RAMFS_DIRECTORIES[i], 0);
-    if (ret != 0) {
-      k_printf(LOG_MAIN "Failed to create initial RamFS directory %s\n", INITIAL_RAMFS_DIRECTORIES[i]);
+  for (int i = 0; i < num_files; i++) {
+    const RamdiskEntry* entry = ramdisk_get_entry(ramdisk_image, i);
+    if (entry == NULL) {
+      k_printf(LOG_MAIN "Failed to get ramdisk entry %d\n", i);
       return -1;
     }
+
+    const uint8_t* data = ramdisk_get_data(ramdisk_image, entry);
+    if (data == NULL) {
+      k_printf(LOG_MAIN "Failed to get ramdisk data for entry %d\n", i);
+      return -1;
+    }
+
+    if (ensure_parent_directories(entry->path) != 0) {
+      k_printf(LOG_MAIN "Failed to create parent directories for %s\n", entry->path);
+      return -1;
+    }
+    
+    VFSFileDescriptor* fd = vfs_open(entry->path, O_CREAT | O_WRONLY, 0);
+    if (fd == NULL) {
+      k_printf(LOG_MAIN "Failed to create file %s in RamFS\n", entry->path);
+      return -1;
+    }
+    k_printf(LOG_MAIN "Creating file %s in RamFS with size 0x%x\n", entry->path, entry->size);
+
+    if (copy_bin_from_memory_to_file(fd, (uint8_t*)data, entry->size) != 0) {
+      vfs_close(fd);
+      return -1;
+    }
+
+    vfs_close(fd);
   }
-  k_printf(LOG_MAIN "Created initial RamFS directories\n");
-
-
-  VFSFileDescriptor* init_process_fd = vfs_open(INIT_BIN_PATH, O_CREAT | O_RDWR, 0);
-  if (init_process_fd == NULL) {
-    k_printf(LOG_MAIN "Failed to create file %s for init process\n", INIT_BIN_PATH);
-    return -1;
-  }
-  k_printf(LOG_MAIN "Created init process file %s in RamFS\n", INIT_BIN_PATH);
-
-  int ret = copy_bin_from_memory_to_file(init_process_fd, (uint8_t*)INIT_BIN_LOAD_ADDR, INIT_BIN_SIZE);
-  if (ret != 0) {
-    k_printf(LOG_MAIN "Failed to copy init process binary from 0x%lx to RamFS\n", INIT_BIN_LOAD_ADDR);
-    return -1;
-  }
-
-  vfs_close(init_process_fd);
 
   // Placeholder console file for console output, since we don't have a real device driver yet
+  if (ensure_directory_exists("/dev") != 0) {
+    k_printf(LOG_MAIN "Failed to create /dev directory in RamFS\n");
+    return -1;
+  }
   VFSFileDescriptor* console_fd = vfs_open("/dev/console", O_CREAT, 0);
   if (console_fd == NULL) {
     k_printf(LOG_MAIN "Failed to create /dev/console in RamFS\n");
     return -1;
   }
   vfs_close(console_fd);
-
-  // Shell in /bin/sh
-  VFSFileDescriptor* shell_fd = vfs_open("/bin/sh", O_CREAT | O_RDWR, 0);
-  if (shell_fd == NULL) {
-    k_printf(LOG_MAIN "Failed to create file %s for shell\n", SHELL_BIN_PATH);
-    return -1;
-  }
-  ret = copy_bin_from_memory_to_file(shell_fd, (uint8_t*)SHELL_BIN_LOAD_ADDR, SHELL_BIN_SIZE);
-  if (ret != 0) {
-    k_printf(LOG_MAIN "Failed to copy shell binary from 0x%lx to RamFS\n", SHELL_BIN_LOAD_ADDR);
-    return -1;
-  }
-
-  vfs_close(shell_fd);
 
   return 0;
 }
