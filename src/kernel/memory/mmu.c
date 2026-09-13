@@ -12,7 +12,7 @@ static uint64_t l1_page_table[NUM_CPUS][L1_PAGE_TABLE_ENTRIES];
 extern uint64_t kernel_base[];
 extern uint64_t device_memory_base[];
 
-static Spinlock mmu_lock = {0};
+static Spinlock mmu_lock = SPINLOCK_INIT_IRQ_SAFE;
 
 void mmu_init(void) {
   uint32_t cpu_id = GET_CPU_ID();

@@ -297,6 +297,15 @@ uint64_t* process_get_l2_table(pid_t pid) {
   return process->l2_table;
 }
 
+int process_release_cloned_task(pid_t pid) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
+  }
+  sched_unblock_task(process->task_id);
+  return 0;
+}
+
 int process_load_l2_table(pid_t pid) {
   Process* process = get_process_by_pid(pid);
   if (process == NULL) {

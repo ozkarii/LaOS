@@ -11,7 +11,12 @@ typedef int32_t pid_t;
 
 pid_t process_create_init_process(void);
 int process_destroy(pid_t pid);
+
+// Fork process. The child is blocked until process_release_cloned_task is called.
 pid_t process_clone(pid_t parent_pid);
+
+// Makes a cloned child schedulable. Call only once and after process_clone.
+int process_release_cloned_task(pid_t pid);
 
 uint64_t* process_get_l2_table(pid_t pid);
 int process_load_l2_table(pid_t pid);

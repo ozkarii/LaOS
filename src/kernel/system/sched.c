@@ -558,17 +558,16 @@ task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param) {
   return new_task->id;
 }
 
-task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table, 
-                                 uint32_t cpu_id, uintptr_t sp, pid_t pid) {
+// Assumes sched_ctx lock is held
+static Task* create_user_task_locked(uintptr_t entry_point_va, uint64_t* l2_table,
+                                     uint32_t cpu_id, uintptr_t sp, pid_t pid) {
   if (!sched_ctx.initialized || sched_ctx.current_task_count >= MAX_TASKS) {
-    return NO_TASK;
+    return NULL;
   }
 
-  lock_sched_ctx();
   Task* new_task = allocate_task();
   if (new_task == NULL) {
-    unlock_sched_ctx();
-    return NO_TASK;
+    return NULL;
   }
 
   sched_ctx.current_task_count++;
@@ -586,7 +585,19 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table,
   new_task->l2_table = l2_table;
   new_task->cpu_id = cpu_id;
   new_task->pid = pid;
+
+  return new_task;
+}
+
+task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table,
+                                 uint32_t cpu_id, uintptr_t sp, pid_t pid) {
+  lock_sched_ctx();
+  Task* new_task = create_user_task_locked(entry_point_va, l2_table, cpu_id, sp, pid);
   unlock_sched_ctx();
+
+  if (new_task == NULL) {
+    return NO_TASK;
+  }
 
   TRACE(LOG_SCHED "Created user task: id=%ld, entry=0x%lx, sp=0x%lx, cpu=%d, pid=%d\r\n",
       new_task->id, new_task->ctx.pc, new_task->ctx.sp_el0, new_task->cpu_id, new_task->pid);
@@ -702,17 +713,20 @@ task_id_t sched_clone_user_task(task_id_t src_task_id, uint64_t* l2_table, pid_t
     return NO_TASK;
   }
 
-  task_id_t new_task_id = sched_create_user_task(src_task->ctx.pc, l2_table, target_cpu,
-                                                 src_task->ctx.sp_el0, pid);
-  if (new_task_id == NO_TASK) {
+  lock_sched_ctx();
+  Task* new_task = create_user_task_locked(src_task->ctx.pc, l2_table, target_cpu,
+                                           src_task->ctx.sp_el0, pid);
+  if (new_task == NULL) {
+    unlock_sched_ctx();
     return NO_TASK;
   }
-  Task* new_task = get_task_by_id(new_task_id);
 
   copy_saved_context(new_task, src_task);
-  new_task->state = TASK_STATE_READY;
+  // Set blocked because fork needs to write the return value before it is schedulable
+  new_task->state = TASK_STATE_BLOCKED;
+  unlock_sched_ctx();
 
-  return new_task_id;
+  return new_task->id;
 }
 
 int sched_set_l2_table_for_cpu_current_task(uint64_t* l2_table) {

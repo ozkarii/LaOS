@@ -181,6 +181,10 @@ void handle_fork(SyscallContext *ctx) {
     WITH_PROCESS_L2_TABLE(child_pid, {
       WRITE_AS_EL0_64(ctx->ret, 0);
     });
+
+    // Unblock the child task only after writing the fork()
+    // return value in the child process's context to avoid race.
+    process_release_cloned_task(child_pid);
   }
 
   end_deferred_syscall_handler(ctx);
