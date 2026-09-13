@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    python3 python3-venv python3-tomli python3-kconfiglib meson build-essential \
+    python3 python3-venv python3-tomli meson build-essential \
     libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev git \
     cmake nano iputils-ping sudo wget gdb-multiarch && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -20,6 +20,11 @@ RUN cd /tmp && \
     cd /tmp && rm -rf qemu
 
 ENV PATH="/opt/arm-gnu-toolchain/bin:${PATH}"
+
+# Additional packages here (Couldn't bother rebuilding the previous layers :D)
+RUN apt-get update && apt-get install -y \
+    python3-kconfiglib && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Remove default 'ubuntu' user
 RUN userdel -r ubuntu && rm -rf /home/ubuntu
