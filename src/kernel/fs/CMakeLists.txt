@@ -5,6 +5,8 @@ add_library(kernel_fs STATIC
 
 add_library(LaOS::kernel::fs ALIAS kernel_fs)
 
+laos_use_kconfig(kernel_fs)
+
 target_include_directories(kernel_fs
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

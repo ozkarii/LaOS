@@ -1,0 +1,27 @@
+menu "Memory"
+
+config MEMORY_OBJECT_SIZE_SMALL
+	hex "Kernel malloc small object size"
+	default 0x100
+
+config MEMORY_OBJECT_SIZE_MEDIUM
+	hex "Kernel malloc medium object size"
+	default 0x1000
+
+config MEMORY_OBJECT_SIZE_LARGE
+	hex "Kernel malloc large object size"
+	default 0x200000
+
+config MEMORY_NUM_OBJECTS_SMALL
+	int "Number of small allocator objects"
+	default 128
+
+config MEMORY_NUM_OBJECTS_MEDIUM
+	int "Number of medium allocator objects"
+	default 32
+
+config MEMORY_NUM_OBJECTS_LARGE
+	int "Number of large allocator objects"
+	default 16
+
+endmenu

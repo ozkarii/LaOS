@@ -163,7 +163,7 @@ int c_entry() {
   k_printf(LOG_MAIN "PL011 UART IRQ enabled\n");
   k_printf(LOG_MAIN "cntpct_el0 IRQ enabled\n");
 
-  sched_init(100000, gicc_end_irq);
+  sched_init(gicc_end_irq);
 
   static VFS vfs;
   if (vfs_init(&vfs) != 0) {

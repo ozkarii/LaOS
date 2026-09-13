@@ -7,10 +7,6 @@
 
 #define STACK_TOP_VA    0x600000
 
-#define MAX_PROCESSES 64
-#define MAX_OPEN_FDS 16
-#define MAX_VIRTUAL_MEMORY_MAPPINGS 16
-
 typedef int32_t pid_t;
 
 pid_t process_create_init_process(void);

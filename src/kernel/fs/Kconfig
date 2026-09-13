@@ -1,0 +1,44 @@
+menu "Filesystem"
+
+config FS_VFS_MAX_OPEN_FILES
+    int "VFS max open files"
+    default 64
+    help
+      Upper bound on the number of files that can be open at once
+      in the virtual file system.
+
+config FS_VFS_MAX_MOUNTS
+    int "VFS max mount points"
+    default 8
+    help
+      Upper bound on the number of mount points that can be registered
+      in the virtual file system.
+
+config FS_RAMFS_MAX_FILE_SIZE
+    hex "RamFS max file size"
+    default 0x80000
+    help
+      Upper bound on the size of any single file stored in the
+      in-memory ramfs.
+
+config FS_RAMFS_MAX_FILES
+    int "RamFS max files"
+    default 16
+    help
+      Total number of file slots (including directories) available
+      in the in-memory ramfs.
+
+config FS_RAMFS_MAX_FILE_HANDLES
+    int "RamFS max open files"
+    default 16
+    help
+      Maximum number of files that can be open in the ramfs at once.
+
+config FS_RAMFS_MAX_CHILDREN
+    int "RamFS max children per directory"
+    default 8
+    help
+      Maximum number of direct children a single directory in the
+      ramfs can have.
+
+endmenu

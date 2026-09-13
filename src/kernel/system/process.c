@@ -11,6 +11,12 @@
 #include "elf-loader.h"
 #include "spinlock.h"
 
+#include "kernel_system_autoconf.h"
+
+#define MAX_PROCESSES CONFIG_SYSTEM_PROCESS_MAX_PROCESSES
+#define MAX_OPEN_FDS CONFIG_SYSTEM_PROCESS_MAX_OPEN_FDS
+#define MAX_VIRTUAL_MEMORY_MAPPINGS CONFIG_SYSTEM_PROCESS_MAX_VIRTUAL_MEMORY_MAPPINGS
+
 #define ENABLE_LOG 1
 
 #if ENABLE_LOG

@@ -3,7 +3,9 @@
 
 #include <stdbool.h>
 
-#define PATH_NAME_MAX 64
+#include "kernel_utils_autoconf.h"
+
+#define PATH_NAME_MAX CONFIG_UTILS_PATH_NAME_MAX
 
 // All other functions in this layer assume valid paths
 // Use this function to validate paths before passing them to other functions

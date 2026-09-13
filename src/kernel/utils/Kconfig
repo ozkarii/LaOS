@@ -1,0 +1,10 @@
+menu "Misc"
+
+config UTILS_PATH_NAME_MAX
+    int "Maximum length of a path name"
+    default 64
+    help
+      Maximum number of characters (including the terminating NUL)
+      in any path handled by the kernel's path utilities.
+
+endmenu

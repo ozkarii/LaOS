@@ -1,13 +1,14 @@
 #include "fcntl.h"
 
+#include "kernel_fs_autoconf.h"
 #include "ramfs.h"
 #include "string.h"
 #include "vfs.h"
 
-#define RAMFS_MAX_FILES 16
-#define RAMFS_MAX_FILE_HANDLES 16
-#define RAMFS_MAX_CHILDREN 8
-#define RAMFS_MAX_FILE_SIZE (1024 * 512)  // 512 kB max file size
+#define RAMFS_MAX_FILES CONFIG_FS_RAMFS_MAX_FILES
+#define RAMFS_MAX_FILE_HANDLES CONFIG_FS_RAMFS_MAX_FILE_HANDLES
+#define RAMFS_MAX_CHILDREN CONFIG_FS_RAMFS_MAX_CHILDREN
+#define RAMFS_MAX_FILE_SIZE CONFIG_FS_RAMFS_MAX_FILE_SIZE
 #define ROOT_IDX 0  // Root should always be at index 0 in files array
 
 typedef struct RamFSFile RamFSFile;

@@ -1,0 +1,7 @@
+mainmenu "LaOS Configuration"
+
+source "src/kernel/fs/Kconfig"
+source "src/kernel/memory/Kconfig"
+source "src/kernel/system/Kconfig"
+
+source "src/kernel/utils/Kconfig"

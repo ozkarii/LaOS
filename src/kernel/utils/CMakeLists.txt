@@ -6,6 +6,8 @@ add_library(kernel_utils STATIC
 )
 add_library(LaOS::kernel::utils ALIAS kernel_utils)
 
+laos_use_kconfig(kernel_utils)
+
 target_include_directories(kernel_utils
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

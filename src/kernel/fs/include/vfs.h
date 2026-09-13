@@ -10,8 +10,10 @@
 
 #include "path.h"
 
-#define MAX_OPEN_FILES 64
-#define MAX_MOUNTS 16
+#include "kernel_fs_autoconf.h"
+
+#define MAX_OPEN_FILES CONFIG_FS_VFS_MAX_OPEN_FILES
+#define MAX_MOUNTS CONFIG_FS_VFS_MAX_MOUNTS
 
 typedef struct VFSStat {
   size_t size;

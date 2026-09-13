@@ -16,7 +16,13 @@
 #include "spinlock.h"
 #include "mmu.h"
 
-#define TASK_STACK_SIZE 0x4000  // 16 KB
+#include "kernel_system_autoconf.h"
+
+#define TASK_TIME_SLICE_US ((uint64_t)CONFIG_SYSTEM_SCHED_TASK_TIME_SLICE_US)
+#define KERNEL_TASK_STACK_SIZE CONFIG_SYSTEM_SCHED_KERNEL_TASK_STACK_SIZE
+//#define TASK_TIME_SLICE_US 100000
+//#define KERNEL_TASK_STACK_SIZE 4096
+
 #define US_TO_CNTP_TVAL(us) ((us) * GET_TIMER_FREQ() / 1000000ULL)
 #define IDLE_TASK_INDEX MAX_TASKS  // Idle tasks are placed at the end of the task list
 
@@ -221,7 +227,7 @@ typedef struct Task {
   
   uint8_t pre_stack_padding[256];
   __attribute__((aligned(16))) // AArch64 requires 16-byte alignment
-  uint8_t stack[TASK_STACK_SIZE];
+  uint8_t stack[KERNEL_TASK_STACK_SIZE];
   uint8_t post_stack_padding[256];
 
 } Task;
@@ -348,7 +354,7 @@ static void create_idle_tasks(void) {
     sched_ctx.total_tasks_created++;
 
     task->id = sched_ctx.total_tasks_created;
-    task->ctx.sp_el1 = (uintptr_t)&task->stack[TASK_STACK_SIZE];
+    task->ctx.sp_el1 = (uintptr_t)&task->stack[KERNEL_TASK_STACK_SIZE];
     task->ctx.sp_el0 = 0;
     task->ctx.pc = (uintptr_t)idle_task;
     task->state = TASK_STATE_INITIAL;
@@ -416,14 +422,14 @@ static void switch_context_from_irq(Task* new_task, uint32_t int_id, uint32_t cp
   }
 }
 
-void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback) {
+void sched_init(EndIRQCallback end_irq_callback) {
   LOG(LOG_SCHED "Initializing scheduler...\n");
-  LOG(LOG_SCHED "Time slice: %lu us\n", time_slice_us);
+  LOG(LOG_SCHED "Time slice: %lu us\n", TASK_TIME_SLICE_US);
   LOG(LOG_SCHED "Policy: FIFO, strict CPU affinity\n");
   LOG(LOG_SCHED "Maximum number of tasks: %d\n", MAX_TASKS);
   memset(&sched_ctx, 0, sizeof(SchedContext));
   sched_ctx.lock.used_from_irq = true;
-  sched_ctx.time_slice_cntp_tval = US_TO_CNTP_TVAL(time_slice_us);
+  sched_ctx.time_slice_cntp_tval = US_TO_CNTP_TVAL(TASK_TIME_SLICE_US);
   sched_ctx.end_irq_callback = end_irq_callback;
   create_idle_tasks();
 
@@ -536,7 +542,7 @@ task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param) {
 
   // use total_tasks_created as ID to avoid reusing IDs of terminated tasks
   new_task->id = (task_id_t)sched_ctx.total_tasks_created;
-  new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
+  new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[KERNEL_TASK_STACK_SIZE];
   new_task->ctx.sp_el0 = 0;
   new_task->ctx.pc = (uintptr_t)task_func;
   new_task->param = param;
@@ -572,7 +578,7 @@ task_id_t sched_create_user_task(uintptr_t entry_point_va, uint64_t* l2_table,
   new_task->id = (task_id_t)sched_ctx.total_tasks_created;
   new_task->ctx.sp_el0 = sp;
   // this will be used when storing/restoring context
-  new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[TASK_STACK_SIZE];
+  new_task->ctx.sp_el1 = (uintptr_t)&new_task->stack[KERNEL_TASK_STACK_SIZE];
   new_task->ctx.pc = entry_point_va;
   new_task->state = TASK_STATE_INITIAL;
   new_task->sleep_until = 0;
@@ -612,7 +618,7 @@ void sched_block_task(task_id_t task_id) {
   if (task != NULL && (task->state == TASK_STATE_RUNNING || task->state == TASK_STATE_READY)) {
     task->state = TASK_STATE_BLOCKED;
   }
-  lock_sched_ctx();
+  unlock_sched_ctx();
 }
 
 // Works only for task on caller CPU
@@ -676,7 +682,7 @@ void sched_terminate_cpu_current_task(void) {
 
 static inline void copy_saved_context(Task* dest, Task* src) {
   // Saved context from dest sp_el1 needs to be copied to src task stack
-  uintptr_t dest_stack_top = (uintptr_t)&dest->stack[TASK_STACK_SIZE];
+  uintptr_t dest_stack_top = (uintptr_t)&dest->stack[KERNEL_TASK_STACK_SIZE];
   const size_t offset = 31 * 8;
   
   uint64_t* context_in_dest_stack = (uint64_t*)(dest_stack_top - offset);

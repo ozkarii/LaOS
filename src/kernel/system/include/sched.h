@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include "sys/types.h"
 
-#define MAX_TASKS 32
+#include "kernel_system_autoconf.h"
+
+#define MAX_TASKS CONFIG_SYSTEM_MAX_TASKS
 
 typedef int64_t task_id_t;
 #define NO_TASK ((task_id_t)(-1))
@@ -20,7 +22,7 @@ typedef enum {
 // TODO: refactor function return values
 
 // Call only from one CPU
-void sched_init(uint64_t time_slice_us, EndIRQCallback end_irq_callback);
+void sched_init(EndIRQCallback end_irq_callback);
 
 // Create kernel task for caller CPU
 task_id_t sched_create_kernel_task(void (*task_func)(void*), void *param);

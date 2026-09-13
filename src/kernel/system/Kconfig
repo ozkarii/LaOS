@@ -1,0 +1,43 @@
+menu "Processes"
+
+config SYSTEM_PROCESS_MAX_PROCESSES
+    int "Maximum number of processes"
+    default 64
+    help
+      Maximum number of processes that can be created in the system.
+
+config SYSTEM_PROCESS_MAX_OPEN_FDS
+    int "Maximum number of open file descriptors per process"
+    default 16
+    help
+      Maximum number of open file descriptors that a process can have.
+
+config SYSTEM_PROCESS_MAX_VIRTUAL_MEMORY_MAPPINGS
+    int "Maximum number of virtual memory mappings per process"
+    default 16
+    help
+      Maximum number of virtual memory mappings that a process can have.
+
+endmenu
+
+menu "Tasks and Scheduling"
+
+config SYSTEM_MAX_TASKS
+    int "Maximum number of tasks"
+    default 32
+    help
+      Maximum number of tasks that can be created in the system.
+
+config SYSTEM_SCHED_KERNEL_TASK_STACK_SIZE
+    hex "Kernel task stack size"
+    default 0x4000
+    help
+      Size of the stack allocated for each kernel task.
+
+config SYSTEM_SCHED_TASK_TIME_SLICE_US
+    int "Scheduler time slice (microseconds)"
+    default 100000
+    help
+      Time slice for each task in microseconds.
+
+endmenu
