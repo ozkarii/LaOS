@@ -1,4 +1,5 @@
 #include "sys/types.h"
+#include "sys/stat.h"
 #include "unistd.h"
 
 #include "syscall-common.h"
@@ -87,5 +88,23 @@ int close(int fd) {
 int mkdir(const char *path, mode_t mode) {
   long ret = -1;
   make_syscall(SYS_MKDIR, &ret, (long)path, mode, 0, 0, 0, 0);
+  return (int)ret;
+}
+
+char *getcwd(char *buf, size_t size) {
+  long ret = -1;
+  make_syscall(SYS_GETCWD, &ret, (long)buf, size, 0, 0, 0, 0);
+  return (char *)ret;
+}
+
+int chdir(const char *path) {
+  long ret = -1;
+  make_syscall(SYS_CHDIR, &ret, (long)path, 0, 0, 0, 0, 0);
+  return (int)ret;
+}
+
+int stat(const char *path, struct stat *buf) {
+  long ret = -1;
+  make_syscall(SYS_STAT, &ret, (long)path, (long)buf, 0, 0, 0, 0);
   return (int)ret;
 }

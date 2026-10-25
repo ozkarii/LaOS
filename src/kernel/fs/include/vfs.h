@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "sys/types.h"
+#include "sys/stat.h"
 #include "fcntl.h"
 
 #include "path.h"
@@ -15,10 +16,6 @@
 #define MAX_OPEN_FILES CONFIG_FS_VFS_MAX_OPEN_FILES
 #define MAX_MOUNTS CONFIG_FS_VFS_MAX_MOUNTS
 
-typedef struct VFSStat {
-  size_t size;
-  bool is_directory;
-} VFSStat;
 
 typedef struct VFSInterface {
   void* (*open)(void* fs_data, const char* path, int flags, mode_t mode);
@@ -29,7 +26,7 @@ typedef struct VFSInterface {
   int (*mkdir)(void* fs_data, const char* path, mode_t mode);
   int (*readdir)(void* fs_data, void* dir, char* buffer, size_t size);
   int (*remove)(void* fs_data, const char* path);
-  int (*stat)(void* fs_data, const char* path, VFSStat* stat);
+  int (*stat)(void* fs_data, const char* path, struct stat* stat);
 } VFSInterface;
 
 typedef struct VFSMountPoint {
@@ -63,6 +60,6 @@ int vfs_seek(VFSFileDescriptor* fd, size_t offset);
 int vfs_mkdir(const char* path, mode_t mode);
 int vfs_readdir(VFSFileDescriptor* fd, char* buffer, size_t size);
 int vfs_remove(const char* path);
-int vfs_stat(const char* path, VFSStat* stat);
+int vfs_stat(const char* path, struct stat* stat);
 
 #endif // VFS_H

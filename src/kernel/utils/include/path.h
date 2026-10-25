@@ -25,4 +25,10 @@ char* strip_prefix(const char* src, const char* prefix);
  */
 int calculate_common_path_depth(const char* path, const char* mount_point);
 
+// Resolves a relative path against a current working directory (cwd) and outputs the absolute path.
+// The output buffer `out_abs_path` must be at least PATH_NAME_MAX in size.
+// Input `cwd` and `relative_path` must be null-terminated strings and valid paths.
+// Returns 0 on success, -1 if the resulting path exceeds PATH_NAME_MAX
+int resolve_relative_path(const char* cwd, const char* relative_path, char* out_abs_path);
+
 #endif // PATH_H

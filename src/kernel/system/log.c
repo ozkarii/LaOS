@@ -7,8 +7,16 @@
 #include "spinlock.h"
 
 Spinlock k_puts_lock = SPINLOCK_INIT_IRQ_SAFE;
+bool released = false;
+
+void k_log_release(void) {
+  released = true;
+}
 
 void k_putchar(const char c) {
+  if (released) {
+        
+  }
   pl011_putc(c);
 }
 

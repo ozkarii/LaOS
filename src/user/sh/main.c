@@ -64,7 +64,7 @@ static void resolve_relative_path(const char* current_dir, const char* path, cha
 static void command_ls(char** argv, size_t argc) {
   (void)argv;
   (void)argc;
-  printf("ls: not implemented in userspace yet (missing readdir syscall)\n");
+  printf("ls: not implemented\n");
 }
 
 static void command_touch(char** argv, size_t argc) {
@@ -104,7 +104,7 @@ static void command_mkdir(char** argv, size_t argc) {
 static void command_rm(char** argv, size_t argc) {
   (void)argv;
   (void)argc;
-  printf("rm: not implemented in userspace yet (missing remove syscall)\n");
+  printf("rm: not implemented\n");
 }
 
 static void command_cd(char** argv, size_t argc) {
@@ -113,11 +113,11 @@ static void command_cd(char** argv, size_t argc) {
     return;
   }
 
-  char abs_path[PATH_NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], abs_path);
-
-  // We don't have stat/chdir syscalls yet, so keep this as a no-op with clear feedback.
-  printf("cd: cannot change to %s (missing stat/chdir syscalls)\n", abs_path);
+  int res = chdir(argv[1]);
+  if (res != 0) {
+    printf("cd: failed to change directory to %s\n", argv[1]);
+    return;
+  }
 }
 
 static void command_cat(char** argv, size_t argc) {

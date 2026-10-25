@@ -43,7 +43,7 @@ static int ramfs_seek(void *fs_data, void *file, size_t offset);
 static int ramfs_mkdir(void* fs_data, const char* path, mode_t mode);
 static int ramfs_readdir(void* fs_data, void* handle, char* buffer, size_t size);
 static int ramfs_remove(void* fs_data, const char* path);
-static int ramfs_stat(void* fs_data, const char* path, VFSStat* stat);
+static int ramfs_stat(void* fs_data, const char* path, struct stat* stat);
 
 VFSInterface ramfs_if = {
   .open = ramfs_open,
@@ -223,7 +223,7 @@ static void* ramfs_open(void *fs_data, const char *path, int flags, mode_t mode)
 
   RamFSHandle *handle = allocate_handle(fs, file);
   if (handle == NULL && (flags & O_CREAT)) {
-    destroy_file(file);
+    destroy_file(file); // Cleanup
   }
 
   return handle;
@@ -353,7 +353,7 @@ static int ramfs_remove(void* fs_data, const char* path) {
   return destroy_file(file);
 }
 
-static int ramfs_stat(void* fs_data, const char* path, VFSStat* stat) {
+static int ramfs_stat(void* fs_data, const char* path, struct stat* stat) {
   RamFS* fs = (RamFS*)fs_data;
 
   RamFSFile* file = find_file(fs, path);
@@ -361,8 +361,8 @@ static int ramfs_stat(void* fs_data, const char* path, VFSStat* stat) {
     return -1; // File doesn't exist
   }
 
-  stat->size = file->size;
-  stat->is_directory = file->is_directory;
+  stat->st_size = file->size;
+  stat->st_mode = file->is_directory ? S_IFDIR : S_IFREG;
 
   return 0;
 }

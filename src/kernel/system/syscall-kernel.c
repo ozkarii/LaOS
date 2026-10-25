@@ -23,7 +23,7 @@
     do {} while (0);
 #endif
 
-// Loads target process's L2 table
+// Loads target process's L2 table for duration of code_block execution
 #define WITH_PROCESS_L2_TABLE(pid, code_block) \
   do { \
     sched_set_l2_table_for_cpu_current_task(process_get_l2_table(pid)); \
@@ -40,10 +40,8 @@ typedef struct SyscallContext {
   long* ret;
 } SyscallContext;
 
-typedef void (*syscall_handler_fn)(SyscallContext*);
 
 static inline void end_deferred_syscall_handler(SyscallContext *ctx) {
-  LOG(LOG_SYSCALL "Ending syscall handler for syscall number %ld for PID %d\n", ctx->args[0], ctx->pid);
   sched_unblock_task(ctx->task_id);
   k_free(ctx);
   sched_terminate_cpu_current_task();
@@ -142,8 +140,6 @@ void handle_close(SyscallContext *ctx) {
 
 void handle_exit(SyscallContext *ctx) {
   int status = ctx->args[0];
-  
-  LOG(LOG_SYSCALL "Process %d exited with status %d\n", ctx->pid, status);
 
   (void)status;
   (void)process_destroy(ctx->pid);
@@ -198,7 +194,74 @@ void handle_sleep(SyscallContext *ctx) {
 
 void handle_mkdir(SyscallContext *ctx) {
   WITH_PROCESS_L2_TABLE(ctx->pid, {
-    int ret = vfs_mkdir((const char*)ctx->args[0], (int)ctx->args[1]);
+    // first copy data from user space pointer
+    char tmp_path[PATH_NAME_MAX];
+    size_t i = 0;
+    for (; i < sizeof(tmp_path); i++) {
+      char c = READ_AS_EL0_8((char*)ctx->args[0] + i);
+      tmp_path[i] = c;
+      if (c == '\0') {
+        break;
+      }
+    }
+
+    if (tmp_path[i] != '\0') {
+      // Truncated
+      WRITE_AS_EL0_64(ctx->ret, -1);
+    } else {
+      int ret = vfs_mkdir(tmp_path, (int)ctx->args[1]);
+      WRITE_AS_EL0_64(ctx->ret, ret);
+    }
+  });
+
+  end_deferred_syscall_handler(ctx);
+}
+
+void handle_getcwd(SyscallContext *ctx) {
+  char tmp_cwd[PATH_NAME_MAX];
+  int ret = process_get_cwd(ctx->pid, tmp_cwd, sizeof(tmp_cwd));
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    if (ret == 0) {
+      for (size_t i = 0; i < sizeof(tmp_cwd); i++) {
+        WRITE_AS_EL0_8((char*)ctx->args[0] + i, tmp_cwd[i]);
+        if (tmp_cwd[i] == '\0') {
+          break;
+        }
+      }
+    }
+    WRITE_AS_EL0_64(ctx->ret, ret == 0 ? ctx->args[0] : (long)NULL);
+  });
+
+  end_deferred_syscall_handler(ctx);
+}
+
+void handle_chdir(SyscallContext *ctx) {
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    char tmp_path[PATH_NAME_MAX];
+    size_t i = 0;
+    for (; i < sizeof(tmp_path); i++) {
+      char c = READ_AS_EL0_8((char*)ctx->args[0] + i);
+      tmp_path[i] = c;
+      if (c == '\0') {
+        break;
+      }
+    }
+
+    if (tmp_path[i] != '\0') {
+      // Truncated
+      WRITE_AS_EL0_64(ctx->ret, -1);
+    } else {
+      int ret = process_set_cwd(ctx->pid, tmp_path);
+      WRITE_AS_EL0_64(ctx->ret, ret);
+    }
+  });
+
+  end_deferred_syscall_handler(ctx);
+}
+
+void handle_stat(SyscallContext *ctx) {
+  WITH_PROCESS_L2_TABLE(ctx->pid, {
+    int ret = vfs_stat((const char*)ctx->args[0], (struct stat*)ctx->args[1]);
     WRITE_AS_EL0_64(ctx->ret, ret);
   });
 
@@ -210,24 +273,32 @@ void handle_unimplemented_syscall(SyscallContext *ctx) {
   WRITE_AS_EL0_64(ctx->ret, -1);
 }
 
+typedef void (*syscall_handler_fn)(SyscallContext*);
+
+typedef enum SyscallHandingPolicy {
+  SYSCALL_INLINE,
+  SYSCALL_DEFERRED
+} SyscallHandingPolicy;
+
 typedef struct SyscallHandlerEntry {
   syscall_handler_fn fn;
-  bool deferred;
+  SyscallHandingPolicy handling_policy;
 } SyscallHandlerEntry;
 
 static SyscallHandlerEntry syscall_handler_table[] = {
-  [SYS_GETPID] = {handle_getpid, true},
-  [SYS_OPEN] = {handle_open, true},
-  [SYS_WRITE] = {handle_write, true},
-  [SYS_READ] = {handle_read, true},
-  [SYS_CLOSE] = {handle_close, true},
-  [SYS_EXIT] = {handle_exit, true},
-  [SYS_FORK] = {handle_fork, true},
-  [SYS_EXECV] = {handle_execv, true},
-  [SYS_SLEEP] = {handle_sleep, false},
-  [SYS_MKDIR] = {handle_mkdir, true},
-  [SYS_REMOVE] = {handle_unimplemented_syscall, false},
-  [SYS_STAT] = {handle_unimplemented_syscall, false},
+  [SYS_GETPID] = {handle_getpid, SYSCALL_DEFERRED},
+  [SYS_OPEN] = {handle_open, SYSCALL_DEFERRED},
+  [SYS_WRITE] = {handle_write, SYSCALL_DEFERRED},
+  [SYS_READ] = {handle_read, SYSCALL_DEFERRED},
+  [SYS_CLOSE] = {handle_close, SYSCALL_DEFERRED},
+  [SYS_EXIT] = {handle_exit, SYSCALL_DEFERRED},
+  [SYS_FORK] = {handle_fork, SYSCALL_DEFERRED},
+  [SYS_EXECV] = {handle_execv, SYSCALL_DEFERRED},
+  [SYS_SLEEP] = {handle_sleep, SYSCALL_INLINE},
+  [SYS_MKDIR] = {handle_mkdir, SYSCALL_DEFERRED},
+  [SYS_STAT] = {handle_unimplemented_syscall, SYSCALL_INLINE},
+  [SYS_GETCWD] = {handle_getcwd, SYSCALL_DEFERRED},
+  [SYS_CHDIR] = {handle_chdir, SYSCALL_DEFERRED},
 };
 
 int syscall_handler(long number, long* ret, ...) {
@@ -249,12 +320,12 @@ int syscall_handler(long number, long* ret, ...) {
   // This is return value pointer owned by the user process
   ctx->ret = ret;
 
-  LOG(LOG_SYSCALL "PID=%d task_id=%ld syscall_number=%ld, ret=%lx args=[%ld, %ld, %ld, %ld, %ld, %ld]\n", 
+  LOG(LOG_SYSCALL "PID=%d TID=%ld syscall=%ld ret=0x%lx args=[0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx]\n", 
            ctx->pid, ctx->task_id, number, (uint64_t)ret, ctx->args[0], ctx->args[1], ctx->args[2], ctx->args[3], 
            ctx->args[4], ctx->args[5]);
   
   // Some syscalls can be handled without creating a handler task
-  if (handler_entry->deferred == false) {
+  if (handler_entry->handling_policy == SYSCALL_INLINE) {
     handler_entry->fn(ctx);
   } else {
     sched_create_kernel_task((void*)syscall_handler_table[number].fn, ctx);

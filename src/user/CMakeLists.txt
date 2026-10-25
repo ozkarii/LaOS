@@ -1,6 +1,13 @@
 add_subdirectory(common)
 add_subdirectory(init)
+
 add_subdirectory(sh)
+
+#add_subdirectory(touch)
+#add_subdirectory(mkdir)
+#add_subdirectory(cat)
+#add_subdirectory(pwd)
+#add_subdirectory(cd)
 
 add_custom_target(ramdisk ALL
   DEPENDS ${LAOS_RAMDISK_GEN_EXECUTABLE} sh init

@@ -1,5 +1,5 @@
 add_library(kernel_system STATIC
-  io.c
+  log.c
   process.c
   sched.c
   sem.c

@@ -177,6 +177,8 @@ int vfs_mkdir(const char* path, mode_t mode) {
   const char* path_without_mount_point 
     = get_path_without_mount_point(path, mount->path);
 
+  mode |= S_IFDIR;
+
   return mount->fs->mkdir(mount->fs_data, path_without_mount_point, mode);
 }
 
@@ -203,7 +205,7 @@ int vfs_remove(const char* path) {
   return mount->fs->remove(mount->fs_data, path_without_mount_point);
 }
 
-int vfs_stat(const char* path, VFSStat* stat) {
+int vfs_stat(const char* path, struct stat* stat) {
   if (!is_valid_path(path)) {
     return -1;
   }

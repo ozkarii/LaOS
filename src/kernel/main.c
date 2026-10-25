@@ -25,12 +25,6 @@
 
 #define RAMDISK_ADDR 0x70000000UL
 
-const char* INITIAL_RAMFS_DIRECTORIES[] = {
-  "/sbin",
-  "/dev",
-  "/bin"
-};
-
 
 void console_loop_task(void* arg) {
   (void)arg;
@@ -52,9 +46,9 @@ static int copy_bin_from_memory_to_file(VFSFileDescriptor* fd, uint8_t* src, siz
 }
 
 static int ensure_directory_exists(const char* path) {
-  VFSStat stat;
+  struct stat stat = {0};
   if (vfs_stat(path, &stat) == 0) {
-    return stat.is_directory ? 0 : -1;
+    return stat.st_mode & S_IFDIR ? 0 : -1;
   }
 
   return vfs_mkdir(path, 0);

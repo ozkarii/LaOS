@@ -1,4 +1,5 @@
 #include "string.h"
+#include "stdio.h"
 
 #include "path.h"
 
@@ -92,4 +93,20 @@ int calculate_common_path_depth(const char* path, const char* mount_point) {
   }
 
   return depth;
+}
+
+int resolve_relative_path(const char* cwd, const char* relative_path, char* out_abs_path) {
+  if (relative_path[0] == '/') {
+    // Already absolute path
+    strcpy(out_abs_path, relative_path);
+    out_abs_path[PATH_NAME_MAX - 1] = '\0';
+    return 0;
+  }
+
+  int written = snprintf(out_abs_path, PATH_NAME_MAX, "%s/%s", cwd, relative_path);
+  if (written < 0 || written >= PATH_NAME_MAX) {
+    return -1; // Path too long
+  }
+  return 0;
+
 }

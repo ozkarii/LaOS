@@ -75,7 +75,7 @@ static void free_string_tokens(StringTokens* s) {
 }
 
 // Make sure `out` is at least PATH_NAME_MAX in size
-static void resolve_relative_path(const char* cwd, const char* path, char* out) {
+static void resolve_rel_path(const char* cwd, const char* path, char* out) {
   if (path[0] != '/') {
     if (!strcmp(cwd, "/")) {
       snprintf(out, PATH_NAME_MAX, "/%s", path);
@@ -94,7 +94,7 @@ void command_ls(char** argv, size_t argc) {
   static char abs_path[PATH_NAME_MAX] = {0};
 
   if (argc == 2) {
-    resolve_relative_path(cwd, argv[1], abs_path);
+    resolve_rel_path(cwd, argv[1], abs_path);
   } else if (argc == 1) {
     strcpy(abs_path, cwd);
   } else {
@@ -123,7 +123,7 @@ void command_touch(char** argv, size_t argc) {
   }
 
   static char abs_path[PATH_NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], abs_path);
+  resolve_rel_path(cwd, argv[1], abs_path);
 
   VFSFileDescriptor* fd = vfs_open(abs_path, O_CREAT, 0);
   if (fd == NULL) {
@@ -140,7 +140,7 @@ void command_mkdir(char** argv, size_t argc) {
   }
 
   static char abs_path[PATH_NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], abs_path);
+  resolve_rel_path(cwd, argv[1], abs_path);
 
   int ret = vfs_mkdir(abs_path, 0);
   if (ret != 0) {
@@ -155,7 +155,7 @@ void command_rm(char** argv, size_t argc) {
   }
 
   static char abs_path[PATH_NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], abs_path);
+  resolve_rel_path(cwd, argv[1], abs_path);
 
   int ret = vfs_remove(abs_path);
   if (ret != 0) {
@@ -170,15 +170,15 @@ void command_cd(char** argv, size_t argc) {
   }
   
   static char abs_path[PATH_NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], abs_path);
+  resolve_rel_path(cwd, argv[1], abs_path);
 
-  VFSStat stat = {0};
+  struct stat stat = {0};
   int ret = vfs_stat(abs_path, &stat);
   if (ret != 0) {
     k_printf("vfs_stat: failed to stat %s\n", abs_path);
     return;
   }
-  if (stat.is_directory) {
+  if (stat.st_mode & S_IFDIR) {
     strcpy(cwd, abs_path);
   }
 }
@@ -190,15 +190,15 @@ void command_cat(char** argv, size_t argc) {
   }
 
   static char abs_path[PATH_NAME_MAX] = {0};
-  resolve_relative_path(cwd, argv[1], abs_path);
+  resolve_rel_path(cwd, argv[1], abs_path);
 
-  VFSStat stat = {0};
+  struct stat stat = {0};
   if (vfs_stat(abs_path, &stat) == -1) {
     k_printf("vfs_stat: failed to stat %s\n", abs_path);
     return;
   }
 
-  if (stat.is_directory) {
+  if (stat.st_mode & S_IFDIR) {
     k_printf("cat: %s: is a directory\n", abs_path);
     return;
   }

@@ -41,6 +41,7 @@ typedef struct Process {
   FileDescriptor open_fds[MAX_OPEN_FDS];
   uint64_t* l2_table;
   VirtualMemoryMapping virtual_memory_mappings[MAX_VIRTUAL_MEMORY_MAPPINGS];
+  char cwd[PATH_NAME_MAX];
 } Process;
 
 typedef struct ProcessesContext {
@@ -189,22 +190,22 @@ pid_t process_create_init_process(void) {
   p->open_fds[1].fd = 1;
   p->open_fds[1].vfs_fd = console_fd;
 
-  VFSStat stat;
+  struct stat stat = {0};
   if (vfs_stat("/sbin/init", &stat) != 0) {
     goto destroy_process;
   }
 
-  void *tmp_elf = k_malloc(stat.size);
+  void *tmp_elf = k_malloc(stat.st_size);
   if (tmp_elf == NULL) {
     goto destroy_process;
   }
 
-  if (vfs_read(init_bin_fd, tmp_elf, stat.size) != (ssize_t)stat.size) {
+  if (vfs_read(init_bin_fd, tmp_elf, stat.st_size) != (ssize_t)stat.st_size) {
     goto free_tmp_elf;
   }
 
   uint64_t entry_offset = 0;
-  if (elf_load_from_memory(tmp_elf, stat.size, p->virtual_memory_mappings[0].pa,
+  if (elf_load_from_memory(tmp_elf, stat.st_size, p->virtual_memory_mappings[0].pa,
                            p->virtual_memory_mappings[1].pa, &entry_offset) != 0) {
     goto free_tmp_elf;
   }
@@ -217,6 +218,8 @@ pid_t process_create_init_process(void) {
   p->task_id = id;
 
   vfs_close(init_bin_fd);
+
+  strcpy(p->cwd, "/");
 
   unlock_processes_ctx();
 
@@ -279,6 +282,8 @@ pid_t process_clone(pid_t parent_pid) {
   }
   child->task_id = id;
 
+  strcpy(child->cwd, parent->cwd);
+
   unlock_processes_ctx();
 
   return child->pid;
@@ -330,7 +335,13 @@ int process_open_file(pid_t pid, const char* path, int flags, mode_t mode) {
     return -1;
   }
 
-  VFSFileDescriptor* vfs_fd = vfs_open(path, flags, mode);
+  char abs_path[PATH_NAME_MAX] = {0};
+  int res = resolve_relative_path(process->cwd, path, abs_path);
+  if (res != 0) {
+    return -1;
+  }
+
+  VFSFileDescriptor* vfs_fd = vfs_open(abs_path, flags, mode);
   if (vfs_fd == NULL) {
     return -1;
   }
@@ -401,26 +412,26 @@ int process_replace_executable(pid_t pid, const char* path) {
     return -1;
   }
 
-  VFSStat stat;
+  struct stat stat = {0};
   if (vfs_stat(path, &stat) != 0) {
     vfs_close(vfs_fd);
     return -1;
   }
 
-  void *tmp_elf = k_malloc(stat.size);
+  void *tmp_elf = k_malloc(stat.st_size);
   if (tmp_elf == NULL) {
     vfs_close(vfs_fd);
     return -1;
   }
 
-  if (vfs_read(vfs_fd, tmp_elf, stat.size) != (ssize_t)stat.size) {
+  if (vfs_read(vfs_fd, tmp_elf, stat.st_size) != (ssize_t)stat.st_size) {
     k_free(tmp_elf);
     vfs_close(vfs_fd);
     return -1;
   }
 
   uint64_t entry_offset = 0;
-  if (elf_load_from_memory(tmp_elf, stat.size, process->virtual_memory_mappings[0].pa,
+  if (elf_load_from_memory(tmp_elf, stat.st_size, process->virtual_memory_mappings[0].pa,
                            process->virtual_memory_mappings[1].pa, &entry_offset) != 0) {
     k_free(tmp_elf);
     vfs_close(vfs_fd);
@@ -441,5 +452,40 @@ int process_replace_executable(pid_t pid, const char* path) {
 
   k_free(tmp_elf);
   vfs_close(vfs_fd);
+  return 0;
+}
+
+int process_set_cwd(pid_t pid, const char* path) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
+  }
+
+  char abs_path[PATH_NAME_MAX] = {0};
+  int res = resolve_relative_path(process->cwd, path, abs_path);
+  if (res != 0) {
+    return -1;
+  }
+
+  if (!is_valid_path(path)) {
+    return -1;
+  }
+
+  strcpy(process->cwd, path);
+
+  return 0;
+}
+
+int process_get_cwd(pid_t pid, char* buffer, size_t size) {
+  Process* process = get_process_by_pid(pid);
+  if (process == NULL) {
+    return -1;
+  }
+
+  if (strlen(process->cwd) + 1 > size) {
+    return -1; // Buffer too small
+  }
+
+  strcpy(buffer, process->cwd);
   return 0;
 }
